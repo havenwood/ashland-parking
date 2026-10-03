@@ -1,0 +1,97 @@
+---
+import Base from '../../layouts/Base.astro';
+import { sources } from '../../data/sources.ts';
+import type { SourceId } from '../../data/sources.ts';
+import { site } from '../../site.ts';
+import { withBase } from '../../lib/url.ts';
+import '../../styles/document.css';
+
+const date = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(site.asOf));
+const cited: SourceId[] = ['parkingPage', 'parkingMap', 'feeSchedule', 'laz', 'parkingPlan', 'amc1126', 'ord3306'];
+/** Printable form of a link: no scheme, and long paths shortened (the PDF link stays complete). */
+const pretty = (url: string) => {
+  const bare = url.replace(/^https:\/\/(www\.)?/, '');
+  return bare.length <= 72 ? bare : `${bare.slice(0, bare.indexOf('/'))}/…/${decodeURIComponent(bare.split('/').at(-1)!)}`;
+};
+---
+
+<Base
+  title="Cover memo: Downtown Worker Parking Pass (AMC 11.26.105)"
+  description="One-page cover memo to the Ashland City Council on the proposed Downtown Worker Parking Pass."
+  path="bill/memo/"
+  locales={['en']}
+>
+  <nav class="doc-bar" aria-label="Memo">
+    <a class="button quiet" href={withBase('bill/print/')}>The bill</a>
+    <a class="button" href={withBase('ashland-worker-parking-memo.pdf')} type="application/pdf">Download PDF</a>
+  </nav>
+  <div class="sheet">
+    <article class="doc memo" lang="en">
+      <h1>Memorandum</h1>
+      <dl class="memo-head">
+        <dt>To</dt><dd>Mayor Graham and members of the Ashland City Council</dd>
+        <dt>From</dt><dd>{site.preparedBy}, an Ashland local, and resident {site.sponsor.name}</dd>
+        <dt>Date</dt><dd><time datetime={site.asOf}>{date}</time></dd>
+        <dt>Re</dt><dd>Draft ordinance adding AMC 11.26.105, Downtown Worker Parking Pass</dd>
+      </dl>
+      <p class="draft-note">The ordinance is draft language from residents. City staff and the City Attorney will set the final wording.</p>
+
+      <h2>What it does</h2>
+      <ul>
+        <li>Creates a free, one-year Pass for people employed in the downtown parking area, issued on a pay stub from the last 60 days. One Pass per person, one vehicle, no transfers.</li>
+        <li>Lets that vehicle park in a posted 2- or 4-hour space for twice the limit, except on the Plaza, and in the Hargadine structure from 6 a.m. to 6 p.m. without paying. Evening rates still apply.</li>
+        <li>Leaves every other parking rule in place. The City Manager sets the details, can limit the number of Passes, and reports back after a year. Takes effect 90 days after adoption.</li>
+      </ul>
+
+      <h2>Who benefits</h2>
+      <ul>
+        <li>Downtown workers. Today an 8-hour shift on a 2-hour street takes three moves to a different block face, or one with a Pass. In the structure it costs $2.75 a day.</li>
+        <li>Downtown employers, whose staff spend less of each shift moving cars.</li>
+        <li>Customers and visitors, as all-day parking moves into the structure. The City’s 2015 parking plan found that directing employees off-street “would have a significant impact on on-street occupancies.”</li>
+      </ul>
+
+      <h2>Fiscal note (to be supplied by the City)</h2>
+      <ul>
+        <li>Forgone structure revenue from daily fees and monthly passes now paid by people who would qualify. The City and its operator, LAZ Parking, have the usage data to estimate it.</li>
+        <li>Staff time to issue and renew Passes and to enforce doubled limits.</li>
+        <li>The monthly pass is $30 on the City’s parking page and LAZ’s site, but $40 in the FY27 fee schedule.</li>
+      </ul>
+
+      <h2>Sources</h2>
+      <ol class="memo-sources">
+        {cited.map((id) => (
+          <li>{sources[id].title.en}, {sources[id].publisher}, {sources[id].date}. <a href={sources[id].url}>{pretty(sources[id].url)}</a></li>
+        ))}
+      </ol>
+    </article>
+  </div>
+</Base>
+
+<style>
+  @layer components {
+    .memo {
+      page: memo;
+      font-size: 9.5pt;
+      line-height: 1.32;
+      & h1 { font-size: 15pt; text-align: start; margin-block-end: 0.6em; }
+      & h2 { font-size: 11pt; font-weight: 700; margin-block: 1em 0.35em; letter-spacing: 0; }
+      & ul, & ol { padding-inline-start: 1.25em; }
+      & li { margin-block-end: 0.3em; }
+      & p { margin-block-end: 0.4em; }
+    }
+    .draft-note { font-style: italic; margin-block: 0.6em 0; }
+    .memo-head {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 0.15em 1.25em;
+      padding-block-end: 0.75em;
+      border-block-end: 1.5px solid currentColor;
+      & dt { font-weight: 700; }
+    }
+    .memo-sources {
+      font-size: 8pt;
+      & li { overflow-wrap: anywhere; }
+      & a { color: inherit; }
+    }
+  }
+</style>

@@ -1,0 +1,61 @@
+---
+import { LIMIT_HOURS } from '../lib/shift.ts';
+import type { Spot } from '../lib/shift.ts';
+import { stripSvg } from '../lib/strip.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props {
+  hours: number;
+  spot: Spot;
+  locale: Locale;
+}
+
+const { hours, spot, locale } = Astro.props;
+const text = t(locale).strip;
+const limit = LIMIT_HOURS[spot];
+---
+
+<span class="strip" data-strip aria-hidden="true">
+  <span class="label">{text.today}</span>
+  <span class="row today" data-row="today" set:html={stripSvg(hours, limit)} />
+  <span class="label">{text.withPass}</span>
+  <span class="row pass" data-row="pass" set:html={stripSvg(hours, limit * 2)} />
+  <span class="scale">
+    <span>{text.start}</span>
+    <span data-strip-end>{text.end.replace('{hours}', String(hours))}</span>
+  </span>
+</span>
+
+<style>
+  @layer components {
+    .strip {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      align-items: center;
+      gap: 0.6rem 1rem;
+      font-size: var(--step--1);
+      color: var(--ink-soft);
+    }
+    .row :global(svg) { inline-size: 100%; block-size: 1.25rem; overflow: visible; }
+    .today { color: var(--today); }
+    .pass { color: var(--pass); }
+    .row :global(.stretch) { fill: currentColor; fill-opacity: 0.3; }
+    .row :global(.move) { fill: currentColor; }
+    .scale {
+      grid-column: 2;
+      display: flex;
+      justify-content: space-between;
+      border-block-start: 1px solid var(--rule);
+      padding-block-start: 0.25rem;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .row :global(:is(.stretch, .move)) {
+        transition: opacity 0.4s var(--ease-out), scale 0.4s var(--ease-out);
+        transform-box: fill-box;
+        transform-origin: center;
+        @starting-style { opacity: 0; scale: 0.6; }
+      }
+    }
+  }
+</style>

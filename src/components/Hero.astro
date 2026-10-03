@@ -1,0 +1,98 @@
+---
+import ShiftStrip from './ShiftStrip.astro';
+import { moves } from '../lib/shift.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale).hero;
+const example = moves(8, 'street');
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <h1 id="hero-title">{text.title}</h1>
+  <p class="lede">{text.lede}</p>
+  <p class="actions">
+    <a class="button" href="#calculator">{text.primary}</a>
+    <a class="button quiet" href="#bill">{text.secondary}</a>
+  </p>
+
+  <figure class="example">
+    <figcaption>
+      <span class="example-title">{text.example}</span>
+      <span class="example-result">{text.exampleResult}</span>
+    </figcaption>
+    <div class="example-body">
+      <p class="counts" aria-hidden="true">
+        <span class="count today">{example.today}</span>
+        <span class="arrow">{locale === 'es' ? 'a' : 'to'}</span>
+        <span class="count pass">{example.withPass}</span>
+      </p>
+      <ShiftStrip hours={8} spot="street" locale={locale} />
+    </div>
+  </figure>
+</section>
+
+<style>
+  @layer components {
+    .hero {
+      display: grid;
+      gap: var(--space-m);
+      padding-block: var(--space-l) 0;
+    }
+    h1 { max-inline-size: 18ch; }
+    .lede { max-inline-size: 52ch; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+    /* The worked example sits on the quiet surface and lays itself out by its own width. */
+    .example {
+      container-type: inline-size;
+      display: grid;
+      gap: var(--space-s);
+      margin-block-start: var(--space-m);
+      padding: var(--space-m);
+      border-radius: var(--radius);
+      border: 1px solid var(--rule);
+      background: var(--surface);
+    }
+    figcaption { display: grid; gap: 0.15rem; }
+    .example-title { font-weight: 700; }
+    .example-result { color: var(--ink-soft); }
+    .example-body {
+      display: grid;
+      gap: var(--space-m);
+      align-items: center;
+    }
+    @container (inline-size >= 34rem) {
+      .example-body { grid-template-columns: auto 1fr; }
+    }
+    .counts {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      font-family: var(--font-display), Georgia, serif;
+      font-variant-numeric: lining-nums;
+      line-height: 1;
+    }
+    .count {
+      font-size: clamp(2.8rem, 2.2rem + 3vw, 4.5rem);
+      font-weight: 400;
+      &.today { color: var(--today); }
+      &.pass { color: var(--pass); }
+    }
+    .arrow { font-family: var(--font-body), system-ui, sans-serif; font-size: var(--step--1); color: var(--ink-soft); }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .example :global(.today .stretch) { animation: grow 0.6s var(--ease-out) both; }
+      .example :global(.move) { animation: pop 0.45s var(--ease-out) both; animation-delay: 0.7s; }
+      @supports (animation-delay: calc(sibling-index() * 1ms)) {
+        .example :global(.move) { animation-delay: calc(0.35s + sibling-index() * 110ms); }
+      }
+      .example :global(.pass .stretch) { animation: grow 0.6s var(--ease-out) 1.2s both; }
+    }
+  }
+  @keyframes grow { from { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; scale: 0; } }
+</style>

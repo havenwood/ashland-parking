@@ -1,0 +1,160 @@
+---
+import Base from '../layouts/Base.astro';
+import ShiftStrip from './ShiftStrip.astro';
+import { site } from '../site.ts';
+import { fill } from '../lib/format.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+import '../styles/document.css';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale);
+const card = text.counterCard;
+const href = new URL(locale === 'es' ? 'es/' : '', `${Astro.site}ashland-parking/`).href;
+const url = href.replace(/^https:\/\//, '').replace(/\/$/, '');
+// Printed, the address may break after the domain, never inside "ashland-parking".
+const host = url.slice(0, url.indexOf('/') + 1);
+const rest = url.slice(host.length);
+---
+
+<!--
+  A 6 × 4 in card, printed one face to a page. The front stands in a break room for staff; the
+  back faces customers beside a register. Sizes are in container units, so the screen and the
+  print are the same layout at different scales.
+-->
+<Base title={`${card.title}: ${text.onePager.title}`} description={card.description} path="counter-card/">
+  <div class="cards" lang={locale}>
+    <p class="side" id="card-front">{card.front}</p>
+    <section class="face" aria-labelledby="card-front">
+      <div class="face-body front">
+        <p class="draft">{text.draft} {text.draftNote}</p>
+        <h1>{text.hero.title}</h1>
+        <figure class="example">
+          <figcaption>{text.hero.example}</figcaption>
+          <ShiftStrip hours={8} spot="street" locale={locale} />
+        </figure>
+        <div class="foot">
+          <div class="terms">
+            <p class="terms-title">{card.withPass}</p>
+            <dl>
+              {text.qualify.tagTerms.map(({ term, value }) => <div><dt>{term}</dt><dd>{value}</dd></div>)}
+            </dl>
+          </div>
+          <p class="more">{text.onePager.more} <a href={href}>{host}<wbr /><span class="nowrap">{rest}</span></a></p>
+        </div>
+      </div>
+    </section>
+
+    <p class="side" id="card-back">{card.back}</p>
+    <section class="face" aria-labelledby="card-back">
+      <div class="face-body back">
+        <p class="big">{card.customer} <strong>{card.customerPass}</strong></p>
+        <div class="act">
+          <h2>{text.onePager.act}</h2>
+          <p>{text.onePager.actBody}</p>
+        </div>
+        <p class="credit">
+          <span class="draft">{text.footer.draft}</span> {fill(text.footer.credit, { sponsor: site.sponsor.name, name: site.preparedBy })} <a href={href}>{url}</a>
+        </p>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  @layer components {
+    .cards {
+      display: grid;
+      justify-items: center;
+      gap: var(--space-s);
+      padding: var(--space-m) 1rem var(--space-xl);
+    }
+    .side { font-weight: 700; color: var(--ink-soft); font-size: var(--step--1); margin-block-start: var(--space-s); }
+    /* On screen: the card at size, its edge drawn as a cut line. */
+    .face {
+      container-type: inline-size;
+      inline-size: min(100%, 6in);
+      aspect-ratio: 3 / 2;
+      background: var(--paper);
+      outline: 1px dashed var(--ink-soft);
+      outline-offset: 0.35rem;
+    }
+    .face-body {
+      display: grid;
+      block-size: 100%;
+      padding: 5cqi 5.8cqi;
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: 2.6cqi;
+      line-height: 1.3;
+      color: var(--ink);
+      & p, & dd { max-inline-size: none; }
+      & a { color: inherit; text-decoration: none; }
+    }
+    .draft { color: var(--today-text); font-weight: 700; }
+
+    .front { grid-template-rows: auto auto 1fr auto; gap: 2cqi; }
+    .front .draft { font-size: 2.2cqi; }
+    .front h1 {
+      font-size: 5.3cqi;
+      font-weight: 520;
+      line-height: 1.04;
+      text-box: normal;
+    }
+    .example {
+      align-self: center;
+      & figcaption { font-weight: 700; margin-block-end: 1.2cqi; }
+      & :global(.strip) { font-size: 2.2cqi; gap: 1cqi 2.4cqi; }
+      & :global(.row svg) { block-size: 3.4cqi; }
+      /* The card has no room for the strip's scale; the caption already says 8 hours. */
+      & :global(.scale) { display: none; }
+      /* Heavier than on screen: an office laser printer turns a 30% tint to near-white. */
+      & :global(.row .stretch) { fill-opacity: 0.6; }
+    }
+    .foot { display: grid; grid-template-columns: auto 1fr; gap: 4cqi; align-items: end; font-size: 2.4cqi; }
+    .terms-title { font-weight: 700; color: var(--pass); }
+    .terms dl > div { display: flex; gap: 1cqi; white-space: nowrap; }
+    .terms dt::after { content: ':'; }
+    .terms dd { font-weight: 700; }
+    .more { justify-self: end; text-align: end; & a { display: block; font-weight: 700; font-size: 2.9cqi; color: var(--primary); } }
+    .nowrap { white-space: nowrap; }
+
+    .back { grid-template-rows: 1fr auto auto; gap: 3cqi; }
+    .big {
+      align-self: center;
+      font-family: var(--font-display), Georgia, serif;
+      font-size: 4.8cqi;
+      line-height: 1.12;
+      text-wrap: balance;
+      & strong { font-weight: 560; color: var(--pass); }
+    }
+    .act {
+      & h2 { font-size: 3.6cqi; margin-block-end: 0.6cqi; text-box: normal; }
+      & p { font-size: 2.8cqi; }
+    }
+    .credit { font-size: 2cqi; color: var(--ink-soft); }
+
+    @media (forced-colors: active) {
+      .face { outline-color: CanvasText; }
+    }
+  }
+
+  /* Print: one face per 6 × 4 in page, the margin standing in for the screen's padding. */
+  @layer utilities {
+    @media print {
+      .cards { display: block; padding: 0; }
+      .side { display: none; }
+      .face { page: card; inline-size: 100%; aspect-ratio: auto; outline: 0; background: none; break-inside: avoid; }
+      .face + .side + .face { break-before: page; }
+      /* The page's printable area: 4 in less its margins. The print test checks the content's own height. */
+      .face-body { padding: 0; block-size: 3.4in; }
+    }
+  }
+  @page card {
+    size: 6in 4in;
+    margin: 0.3in 0.35in;
+    @top-right { content: none; }
+    @bottom-center { content: none; }
+  }
+</style>

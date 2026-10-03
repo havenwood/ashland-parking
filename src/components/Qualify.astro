@@ -1,0 +1,313 @@
+---
+import Stamp from './Stamp.astro';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale).qualify;
+---
+
+<section id="qualify" class="section" aria-labelledby="qualify-title">
+  <h2 id="qualify-title">{text.title}</h2>
+  <p class="lede">{text.intro}</p>
+
+  <form class="qualify">
+    {text.questions.map((question, index) => {
+      const name = `q${index + 1}`;
+      const hint = question.hint ? `${name}-hint` : undefined;
+      return (
+        <fieldset aria-describedby={hint}>
+          <legend>{question.legend}</legend>
+          {hint && <p class="hint" id={hint}>{question.hint}</p>}
+          <div class="options chips">
+            <label><input type="radio" name={name} id={`${name}-yes`} value="yes" /> {question.yes}</label>
+            <label><input type="radio" name={name} id={`${name}-no`} value="no" /> {question.no}</label>
+          </div>
+        </fieldset>
+      );
+    })}
+
+    <div class="outcome">
+      <div class="results" role="status">
+        <p class="result yes" data-result="yes" data-tone="pass">{text.yes} <a href="#bill-a">{text.seeBill}</a></p>
+        <p class="result no" data-result="no-1">{text.noWork}</p>
+        <p class="result no" data-result="no-2">{text.noEmployee}</p>
+        <p class="result no" data-result="no-3">{text.noStub}</p>
+      </div>
+
+      <!-- Outside the status region: the result above is announced, and the tag is there to be looked at. -->
+      <figure class="tag-figure">
+        <div class="tag">
+          <div class="tag-head">
+            <p class="tag-place">{text.tagPlace}</p>
+            <p class="tag-title">{text.tagTitle}</p>
+          </div>
+          <div class="tag-panel">
+            <dl class="terms">
+              {text.tagTerms.map(({ term, value }, index) => (
+                <div class:list={{ wide: index === text.tagTerms.length - 1 }}><dt>{term}</dt><dd>{value}</dd></div>
+              ))}
+            </dl>
+            <p class="plate" aria-hidden="true"><span>{text.tagPlate}</span><span class="blank"></span></p>
+            <div class="fine-row">
+              <p class="fine">{text.tagFine}</p>
+              <Stamp class="tag-stamp" lang={locale}>{text.tagStamp}</Stamp>
+            </div>
+          </div>
+          <div class="tag-stub">
+            <p class="stub-title">{text.tagAnswers}</p>
+            <ul class="answers">
+              {text.tagTicks.map((tick) => (
+                <li><span class="box" aria-hidden="true"></span>{tick}<span class="visually-hidden">: {text.tagYes}</span></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <figcaption>{text.tagCaption}</figcaption>
+      </figure>
+    </div>
+
+    <button class="button quiet reset" type="reset">{text.startOver}</button>
+  </form>
+</section>
+
+<style>
+  @layer components {
+    .qualify { display: grid; gap: var(--space-m); }
+    fieldset {
+      display: grid;
+      gap: 0.6rem;
+      border: 0;
+      border-block-start: 1px solid var(--rule);
+      padding: 0;
+      padding-block-start: var(--space-s);
+      & legend { float: inline-start; font-weight: 700; font-size: var(--step-1); line-height: 1.3; }
+      & > * { clear: both; }
+    }
+    .hint { color: var(--ink-soft); font-size: var(--step--1); }
+
+    /* The answer, and beside it on a wide screen (below it on a phone) the pass it would get you. */
+    .outcome {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: start;
+      gap: var(--space-m) var(--space-l);
+    }
+
+    /* Results rest on the quiet surface; "you'd qualify" is pass-toned, mint with a pass-green edge. */
+    .results { display: grid; gap: var(--space-s); flex: 1 1 18rem; }
+    .result {
+      display: none;
+      padding: var(--space-s) var(--space-m);
+      border-inline-start: 6px solid var(--no);
+      border-radius: var(--radius);
+      background: var(--surface);
+      font-size: var(--step-1);
+      line-height: 1.45;
+      &.yes { border-color: var(--yes); }
+    }
+    .tag-figure { display: none; }
+    .results:not(:has(.result:is(.yes, .no))) { display: none; }
+    .qualify:has(#q1-yes:checked):has(#q2-yes:checked):has(#q3-yes:checked) [data-result='yes'],
+    .qualify:has(#q1-no:checked) [data-result='no-1'],
+    .qualify:has(#q2-no:checked) [data-result='no-2'],
+    .qualify:has(#q3-no:checked) [data-result='no-3'] {
+      display: block;
+    }
+    .qualify:has(#q1-yes:checked):has(#q2-yes:checked):has(#q3-yes:checked) .tag-figure { display: grid; }
+    .reset { justify-self: start; }
+    .qualify:not(:has(:checked)) .reset { display: none; }
+
+    /*
+     * The hang tag: a mirror tag, as the pass might be printed. Flat stock in the pass's color, no
+     * shadows; the hook hole and slit, the perforation's notches are cut with masks (alpha only),
+     * so the page shows through. All real text.
+     */
+    .tag-figure {
+      /* Room either side for the tag's tilt, so its corners stay in the column. */
+      flex: 0 1 19rem;
+      padding-inline: 1rem;
+      margin-inline: auto;
+      gap: 0.75rem;
+      justify-items: center;
+      & figcaption {
+        max-inline-size: 17rem;
+        font-size: var(--step--1);
+        line-height: 1.4;
+        color: var(--ink-soft);
+        text-align: center;
+        text-wrap: balance;
+      }
+    }
+    .tag {
+      --hole: 0.95rem;
+      --hole-y: 1.9rem;
+      --notch: 0.5rem;
+      --stock: var(--pass);
+      inline-size: min(100%, 16.5rem);
+      rotate: -2deg;
+      transform-origin: 50% var(--hole-y);
+      font-size: var(--step--1);
+      line-height: 1.35;
+    }
+    .tag-head, .tag-stub {
+      background: var(--stock);
+      /* Paper on the pass's green reads at 7:1 or better in both themes. */
+      color: var(--paper);
+    }
+    .tag-head {
+      padding: calc(var(--hole-y) + var(--hole) + 0.7rem) 1.1rem 0.9rem;
+      border-radius: 1.1rem 1.1rem 0 0;
+      /* The stock, less a slit down to the hook hole, less the hole: each cut excluded from the whole. */
+      mask:
+        radial-gradient(circle closest-side, black calc(100% - 0.5px), transparent) 50% calc(var(--hole-y) - var(--hole)) / calc(var(--hole) * 2) calc(var(--hole) * 2) no-repeat,
+        linear-gradient(black 0 0) 50% 0 / 0.36rem calc(var(--hole-y) - var(--hole) + 1px) no-repeat,
+        linear-gradient(black 0 0);
+      mask-composite: exclude, exclude;
+    }
+    .tag-place { font-weight: 700; }
+    .tag-title {
+      margin-block-start: 0.2rem;
+      font-family: var(--font-display), Georgia, serif;
+      font-size: 1.6rem;
+      font-weight: 600;
+      line-height: 1.02;
+      letter-spacing: -0.015em;
+      text-wrap: balance;
+      &:lang(es) { font-size: 1.3rem; line-height: 1.08; }
+    }
+    /* The printed window, where the terms live. */
+    .tag-panel {
+      position: relative;
+      padding: 0.9rem 1.1rem 1rem;
+      background: var(--paper);
+      border-inline: 0.55rem solid var(--stock);
+    }
+    .terms {
+      display: grid;
+      gap: 0.15rem;
+      & > div {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: baseline;
+        gap: 0.5rem;
+        padding-block: 0.25rem;
+        border-block-end: 1px solid var(--rule);
+      }
+      & dd {
+        font-family: var(--font-display), Georgia, serif;
+        font-size: 1.45rem;
+        font-weight: 500;
+        line-height: 1.05;
+        color: var(--pass);
+        white-space: nowrap;
+      }
+      & > div.wide { grid-template-columns: 1fr; }
+      & .wide dd { font-size: 1.1rem; white-space: normal; }
+    }
+    .plate {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.5rem;
+      align-items: end;
+      margin-block-start: 0.7rem;
+      & .blank { block-size: 1.5rem; border-block-end: 2px solid var(--ink); }
+    }
+    /* The fine print, and the stamp beside it; on a narrow tag or a longer word, the stamp drops below. */
+    .fine-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem 0.5rem;
+      margin-block-start: 0.4rem;
+    }
+    .fine { flex: 1 1 7rem; max-inline-size: 9rem; color: var(--ink-soft); }
+    .tag-stamp {
+      --stamp-ink: var(--go-text);
+      margin-inline: auto -0.5rem;
+      font-size: 1.3rem;
+      rotate: -9deg;
+    }
+    /* The stub, below a perforation, carries the reader's own answers. */
+    .tag-stub {
+      padding: 0.85rem 1.1rem 1rem;
+      border-block-start: 2px dashed var(--paper);
+      border-radius: 0 0 var(--radius) var(--radius);
+      mask:
+        radial-gradient(circle at 0 0, transparent var(--notch), black calc(var(--notch) + 0.5px)),
+        radial-gradient(circle at 100% 0, transparent var(--notch), black calc(var(--notch) + 0.5px));
+      mask-composite: intersect;
+    }
+    .stub-title { font-weight: 700; margin-block-end: 0.3rem; }
+    .answers {
+      display: grid;
+      gap: 0.2rem;
+      padding: 0;
+      list-style: none;
+      & li { display: flex; gap: 0.5rem; align-items: baseline; }
+    }
+    /* A box ticked by hand: the box is a border, the tick a rotated corner. No glyphs. */
+    .box {
+      position: relative;
+      flex: none;
+      inline-size: 0.95em;
+      block-size: 0.95em;
+      translate: 0 0.12em;
+      border: 2px solid currentColor;
+      border-radius: 2px;
+      &::after {
+        content: '';
+        position: absolute;
+        inset-inline-start: 0.22em;
+        inset-block-start: -0.12em;
+        inline-size: 0.32em;
+        block-size: 0.7em;
+        border-inline-end: 0.15em solid currentColor;
+        border-block-end: 0.15em solid currentColor;
+        rotate: 40deg;
+      }
+    }
+
+    @media (forced-colors: active) {
+      .tag :is(.tag-head, .tag-panel, .tag-stub) { border: 2px solid CanvasText; }
+      .tag-stub { border-block-start-style: dashed; }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .result {
+        transition: opacity 0.35s var(--ease-out), translate 0.35s var(--ease-out), display 0.35s allow-discrete;
+        @starting-style { opacity: 0; translate: 0 0.5rem; }
+      }
+      /* The tag swings on its hook and settles; then the stamp comes down, and the boxes get ticked. */
+      .tag-figure { animation: drop 0.4s var(--ease-out) both; }
+      .tag { animation: swing 1.2s var(--ease-out) both; }
+      .tag-stamp { animation: thunk 0.35s cubic-bezier(0.3, 0, 0.4, 1) 0.8s both; }
+      .box::after { animation: tick 0.25s var(--ease-out) both; }
+      .answers li:nth-child(1) .box::after { animation-delay: 1s; }
+      .answers li:nth-child(2) .box::after { animation-delay: 1.15s; }
+      .answers li:nth-child(3) .box::after { animation-delay: 1.3s; }
+    }
+    @keyframes drop {
+      from { opacity: 0; translate: 0 -0.75rem; }
+    }
+    @keyframes swing {
+      0% { rotate: 8deg; }
+      30% { rotate: -6deg; }
+      55% { rotate: 1.5deg; }
+      78% { rotate: -3deg; }
+      100% { rotate: -2deg; }
+    }
+    @keyframes thunk {
+      from { scale: 1.8; opacity: 0; }
+      70% { scale: 0.96; opacity: 1; }
+      to { scale: 1; opacity: 1; }
+    }
+    @keyframes tick {
+      from { clip-path: inset(0 0 100% 0); }
+      to { clip-path: inset(0); }
+    }
+  }
+</style>

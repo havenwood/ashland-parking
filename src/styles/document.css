@@ -1,0 +1,104 @@
+/* Letter-size documents: shown as paper on screen, printed by Chromium to PDF. */
+@layer components {
+  .doc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    padding-block-start: var(--space-m);
+    padding-inline: 1rem;
+  }
+  .sheet {
+    box-sizing: content-box;
+    max-inline-size: 6.5in;
+    margin-block: var(--space-m) var(--space-xl);
+    margin-inline: auto;
+    padding: clamp(1.25rem, 6vw, 1in);
+    /* White paper in daylight: the page's paper at full lightness. */
+    background: light-dark(oklch(from var(--paper) 1 0 h), var(--surface));
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+  .doc {
+    font-family: var(--font-display), Georgia, serif;
+    font-optical-sizing: auto;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  /* Document prose is set like a filed ordinance, not like the site: full width, plain wrapping. */
+  @scope (.doc) {
+    p, li { max-inline-size: none; margin-block-end: 0.75em; text-wrap: wrap; }
+    h1 { font-size: 12pt; font-weight: 700; line-height: 1.4; letter-spacing: 0; text-align: center; margin-block-end: 1.25em; }
+    ol { padding-inline-start: 2.25em; }
+  }
+  .ordinance {
+    & .doc-number { text-align: center; font-weight: 700; margin-block-end: 1em; }
+    & .annotation { font-size: 10.5pt; font-style: italic; padding-inline: 2em; color: var(--ink-soft); margin-block-end: 1.5em; }
+    & blockquote { margin-block: 0 0.75em; margin-inline: 2em 0; }
+    & .enacting { font-weight: 700; margin-block: 1em; }
+    & ins { text-decoration: none; display: block; padding-inline-start: 2em; }
+    & ins :is(p, li) { font-weight: 700; text-decoration: underline; text-decoration-thickness: 0.06em; text-underline-offset: 0.15em; }
+    & .code-heading { margin-block-start: 0.5em; }
+    & .sub { display: grid; grid-template-columns: 1.6em 1fr; }
+    & .para { padding-inline-start: 1.6em; }
+    & ins ol { padding-inline-start: 3.6em; }
+  }
+  .signatures {
+    margin-block-start: 2em;
+    break-inside: avoid;
+    & .signed { margin-block: 2em 2.5em; }
+    & .sign-row { display: grid; grid-template-columns: auto 1fr 1fr; gap: 2em; align-items: end; }
+    & .line { border-block-start: 1px solid currentColor; padding-block-start: 0.25em; margin-block-start: 2.5em; }
+    & .form { margin-block-start: 2.5em; inline-size: 50%; }
+    & .form .line { margin-block-start: 2em; }
+  }
+}
+
+/* Paper is always light and the formal text black; site chrome stays off the page. */
+@layer utilities {
+  @media print {
+    :root { color-scheme: light; }
+    body { background: white; color: black; }
+    .masthead, .skip, .doc-bar, .footer { display: none; }
+    .sheet { margin: 0; padding: 0; max-inline-size: none; border: 0; background: none; }
+    .doc { color: black; }
+    /* Print colors are fixed: the draft label is --today's light value, as hex. */
+    .draft-label { color: #c02803; }
+    a { color: inherit; text-decoration: none; }
+  }
+}
+
+@page memo {
+  margin: 0.7in 0.85in 0.7in;
+}
+
+/* One-page flyers: no page number, and the draft mark in the flyer's language. */
+@page flyer {
+  margin: 0.75in 0.9in 0.6in;
+  @bottom-center { content: none; }
+}
+@page flyer-es {
+  margin: 0.75in 0.9in 0.6in;
+  @top-right { content: 'BORRADOR'; }
+  @bottom-center { content: none; }
+}
+
+/* Margin boxes sit outside the document's color scheme, so the draft mark is --today's light value, as hex. */
+@page {
+  size: letter;
+  margin: 1in 1in 0.9in;
+  @top-right {
+    content: 'DRAFT';
+    font-family: Georgia, serif;
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: #c02803;
+  }
+  @bottom-center {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    font-family: Georgia, serif;
+    font-size: 9.5pt;
+  }
+}

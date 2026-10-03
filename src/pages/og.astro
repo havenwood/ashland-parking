@@ -1,0 +1,41 @@
+---
+import Base from '../layouts/Base.astro';
+import ShiftStrip from '../components/ShiftStrip.astro';
+import { t } from '../i18n/strings.ts';
+
+const text = t('en');
+---
+
+<Base title="Social image" description={text.og.subtitle} path="og/" locales={['en']}>
+  <meta slot="head" name="robots" content="noindex" />
+  <div class="og">
+    <p class="kicker">{text.og.subtitle}</p>
+    <h1>{text.og.title}</h1>
+    <div class="strip-wrap">
+      <ShiftStrip hours={8} spot="street" locale="en" />
+    </div>
+    <p class="url">shannonskipper.com/ashland-parking</p>
+  </div>
+</Base>
+
+<style>
+  @layer components {
+    :global(.masthead) { display: none; }
+    .og {
+      inline-size: 1200px;
+      block-size: 630px;
+      padding: 64px 72px;
+      display: grid;
+      grid-template-rows: auto 1fr auto auto;
+      gap: 28px;
+      background: var(--paper);
+      border-block-start: 16px solid var(--pass);
+      overflow: hidden;
+    }
+    .kicker { font-size: 26px; font-weight: 700; color: var(--primary); max-inline-size: none; }
+    h1 { font-size: 64px; line-height: 1.04; max-inline-size: 20ch; font-weight: 480; }
+    .strip-wrap :global(.strip) { font-size: 22px; gap: 14px 24px; }
+    .strip-wrap :global(.row svg) { block-size: 30px; }
+    .url { font-size: 24px; color: var(--ink-soft); max-inline-size: none; }
+  }
+</style>

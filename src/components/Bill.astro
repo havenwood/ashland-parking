@@ -1,0 +1,449 @@
+---
+import { getEntry } from 'astro:content';
+import Stamp from './Stamp.astro';
+import { definitions, escape, highlight, linkTerms, parseBill, termId } from '../lib/bill.ts';
+import type { Block } from '../lib/bill.ts';
+import { withBase } from '../lib/url.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale).bill;
+const entry = await getEntry('ordinance', 'ordinance');
+if (!entry?.body) throw new Error('src/content/ordinance.md is missing.');
+const bill = entry.data;
+const sections = parseBill(entry.body);
+const defined = definitions(sections);
+const terms = [...defined.keys()];
+const base = withBase('').replace(/\/$/, '');
+
+const termButton = (term: string, match: string) =>
+  `<button type="button" class="term" commandfor="def-${termId(term)}" command="toggle-popover">${match}</button>`;
+
+/** Marks the defining instance of each term, as in `“<dfn>Pass</dfn>” means …`. */
+const markDefinitions = (value: string) => value.replace(/^“([^”]+)” means /, (_, term: string) => '“<dfn>' + term + '</dfn>” means ');
+
+/** Renders blocks, linking the first use of each defined term in this subsection. */
+const html = (blocks: Block[], link: boolean) => {
+  const used = new Set<string>();
+  const render = (value: string) => markDefinitions(linkTerms(value, link ? terms : [], used, termButton));
+  // Built in two steps: Astro 7's compiler misparses a template literal nested in an arrow inside `${}`.
+  const item = (value: string) => '<li>' + render(value) + '</li>';
+  return blocks.map((block) => (block.type === 'p'
+    ? '<p>' + render(block.text) + '</p>'
+    : '<ol>' + block.items.map(item).join('') + '</ol>')).join('');
+};
+const id = (letter: string) => `bill-${letter.toLowerCase()}`;
+
+/**
+ * A careful reader's marks: one clause per subsection of the bill, highlighted, with the same band
+ * on the words of its plain-English note (bill.marks in the strings). The bill's text is frozen,
+ * so these are quoted from it exactly.
+ */
+const KEY_CLAUSES: Record<string, string> = {
+  A: 'employed at a place of business in the downtown parking area',
+  B: 'up to twice the posted time limit',
+  C: 'one vehicle by license plate number',
+  D: 'report to the City Council on the number issued and their cost',
+};
+const subText = (letter: string, blocks: Block[]) => {
+  const rendered = html(blocks, true);
+  return KEY_CLAUSES[letter] ? highlight(rendered, KEY_CLAUSES[letter], 'subsection ' + letter + ' of the bill') : rendered;
+};
+const note = (letter: string) => {
+  const plain = escape(text.notes[letter]);
+  return KEY_CLAUSES[letter] ? highlight(plain, text.marks[letter], 'the ' + locale + ' note on subsection ' + letter) : plain;
+};
+---
+
+<section id="bill" class="section wide" aria-labelledby="bill-title">
+  <h2 id="bill-title">{text.title}</h2>
+  <p class="lede">{text.intro}</p>
+  {text.languageNote && <p class="language-note">{text.languageNote}</p>}
+
+  <ul class="downloads" aria-label={text.downloads}>
+    <li><a class="button" href={`${base}/bill/print/`} hreflang="en">{text.printPage}</a></li>
+    <li><a class="button quiet" href={`${base}/ashland-worker-parking-ordinance.pdf`} type="application/pdf" hreflang="en">{text.pdf}</a></li>
+    <li><a class="button quiet" href={`${base}/ashland-worker-parking-memo.pdf`} type="application/pdf" hreflang="en">{text.memo}</a></li>
+    <li data-share-item hidden><button type="button" class="button quiet" data-share-bill>{text.shareBill}</button></li>
+  </ul>
+
+  <p class="draft-notice">{text.draftNotice}</p>
+
+  <article class="bill bleed" lang="en">
+    <Stamp class="draft-stamp" lang={locale}>{text.stamp}</Stamp>
+    <hgroup class="bill-head">
+      <p class="number">ORDINANCE NO. ______</p>
+      <h3 class="bill-title">{bill.title}</h3>
+    </hgroup>
+
+    <details class="recitals" open>
+      <summary lang={locale}>{text.recitals}</summary>
+      <p>WHEREAS, Article 2. Section 1 of the Ashland City Charter provides: <q>{bill.charter.replace(/; and$/, '')}</q>; and</p>
+      {bill.findings.map((finding) => <p>WHEREAS, {finding}</p>)}
+      <p class="enacting">{text.enacting}</p>
+    </details>
+
+    {sections.map((section) => (
+      <div class="part">
+        <p class="section-line">
+          <strong>SECTION {section.number}.</strong>{section.heading && <strong> {section.heading}</strong>}{' '}
+          <Fragment set:html={html(section.blocks, false).replace(/^<p>|<\/p>$/g, '')} />
+        </p>
+        {section.subsections.length > 0 && (
+          <div class="code">
+            <h4 class="code-title"><ins>{bill.codeSection} {bill.codeTitle}</ins></h4>
+            {section.subsections.map((sub) => (
+              <article id={id(sub.letter)} class="sub" aria-labelledby={`${id(sub.letter)}-h`} data-letter={sub.letter}>
+                <header class="sub-head">
+                  <h5 id={`${id(sub.letter)}-h`}><a class="self" href={`#${id(sub.letter)}`}><ins><span class="letter">{sub.letter}.</span> {sub.heading.replace(/\.$/, '')}</ins></a></h5>
+                  <button type="button" class="tool" data-copy={id(sub.letter)} lang={locale} hidden>
+                    <span class="tool-label">{text.copyLink}</span><span class="tool-done" aria-hidden="true">{text.copied}</span>
+                  </button>
+                </header>
+                <ins class="text" set:html={subText(sub.letter, sub.blocks)} />
+                <aside class="note margin" lang={locale}>
+                  <p><span class="visually-hidden">{text.noteLabel}: </span><Fragment set:html={note(sub.letter)} /></p>
+                </aside>
+                <details class="note inline" lang={locale}>
+                  <summary>{text.noteLabel}</summary>
+                  <p set:html={note(sub.letter)} />
+                </details>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    ))}
+
+    <p class="signatures">The foregoing ordinance was first read by title only in accordance with Article X, Section 2(C) of the City Charter on the ____ day of ________, 20__, and duly PASSED and ADOPTED this ____ day of ________, 20__.</p>
+  </article>
+
+  {terms.map((term) => (
+    <dialog id={`def-${termId(term)}`} class="definition" popover lang="en" aria-labelledby={`def-${termId(term)}-h`}>
+      <hgroup>
+        <p class="definition-kicker" lang={locale}>{text.definition}</p>
+        <h3 id={`def-${termId(term)}-h`}>{term}</h3>
+      </hgroup>
+      <p>{defined.get(term)}</p>
+      <button type="button" class="button quiet" commandfor={`def-${termId(term)}`} command="hide-popover" lang={locale}>{text.close}</button>
+    </dialog>
+  ))}
+
+  <p class="visually-hidden" role="status" data-bill-status data-copied={text.copied}></p>
+</section>
+
+<script>
+  const status = document.querySelector<HTMLElement>('[data-bill-status]');
+  const url = (id: string) => `${location.origin}${location.pathname}#${id}`;
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+    if (!navigator.clipboard?.writeText) break;
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(url(button.dataset.copy!));
+      if (status) status.textContent = status.dataset.copied!;
+      button.dataset.done = '';
+      setTimeout(() => {
+        delete button.dataset.done;
+        if (status) status.textContent = '';
+      }, 2000);
+    });
+  }
+
+  const shareItem = document.querySelector<HTMLElement>('[data-share-item]');
+  if (shareItem && typeof navigator.share === 'function') {
+    shareItem.hidden = false;
+    shareItem.querySelector('button')!.addEventListener('click', async () => {
+      try {
+        await navigator.share({ title: document.title, url: url('bill') });
+      } catch {
+        // The reader closed the share sheet.
+      }
+    });
+  }
+</script>
+
+<style>
+  @layer components {
+    .draft-notice {
+      font-weight: 700;
+      color: var(--today-text);
+      padding-inline-start: var(--space-s);
+      border-inline-start: 4px solid var(--today);
+    }
+    .language-note { color: var(--ink-soft); font-style: italic; }
+    .downloads {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+      padding: 0;
+      & li { display: flex; }
+    }
+
+    .bill {
+      container: bill / inline-size;
+      position: relative;
+      padding: var(--space-m);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--surface);
+      font-family: var(--font-display), Georgia, serif;
+      font-optical-sizing: auto;
+      font-size: var(--step-0);
+      line-height: 1.6;
+    }
+    .bill-head { text-align: center; display: grid; gap: 0.75rem; margin-block-end: var(--space-m); }
+    /* One "Draft" stamp on the header, in the draft ribbon's vermilion. The notice above says it in words. */
+    .draft-stamp {
+      position: absolute;
+      inset-block-start: 0.9rem;
+      inset-inline-end: 1rem;
+      font-size: clamp(1.35rem, 1rem + 1.6vw, 2.1rem);
+      rotate: -7deg;
+    }
+    @container bill (width < 46rem) {
+      .bill-head { padding-block-start: 2.75rem; }
+    }
+    .number { font-weight: 700; letter-spacing: 0.04em; max-inline-size: none; }
+    .bill-title {
+      font-size: inherit;
+      font-weight: 600;
+      line-height: inherit;
+      letter-spacing: normal;
+      text-box: normal;
+      max-inline-size: 48ch;
+      margin-inline: auto;
+    }
+
+    .recitals {
+      margin-block-end: var(--space-m);
+      & summary { font-family: var(--font-body), system-ui, sans-serif; }
+      & p { margin-block-start: 0.75rem; }
+      & q { quotes: none; }
+    }
+    .enacting { font-weight: 700; }
+
+    .part { margin-block-start: var(--space-m); }
+    .code { margin-block-start: var(--space-s); display: grid; gap: var(--space-m); }
+    .code-title {
+      font-size: var(--step-1);
+      font-weight: 650;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      @supports (text-wrap: balance) { text-wrap: balance; }
+      @supports (text-box: trim-both cap alphabetic) { text-box: trim-both cap alphabetic; }
+    }
+
+    .sub { display: grid; gap: 0.5rem; scroll-margin-block-start: 6rem; }
+    .sub-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
+    h5 { font-size: var(--step-0); font-weight: 700; }
+    .letter { font-variant-numeric: lining-nums; }
+    /* The heading links to its own subsection. */
+    .self {
+      color: inherit;
+      text-decoration: none;
+      &:hover { text-decoration: underline; text-decoration-thickness: 0.08em; }
+    }
+    /* One quiet "Copy link", shown on hover or keyboard focus, never on touch screens. */
+    .tool {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 2rem;
+      padding-inline: 0.5rem;
+      border: 0;
+      border-radius: var(--radius);
+      background: none;
+      color: var(--primary);
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: var(--step--1);
+      font-weight: 700;
+      cursor: pointer;
+      opacity: 0;
+      &:hover { background: oklch(from var(--primary) l c h / 0.1); }
+      &[data-done] { color: var(--go-text); opacity: 1; }
+    }
+    /* Copied: the label steps aside (still the button's name) and a ticked "Link copied" takes its place. */
+    .tool-done { display: none; }
+    .tool[data-done] {
+      & .tool-label {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      & .tool-done { display: inline-flex; align-items: center; gap: 0.4em; }
+    }
+    .tool-done::before {
+      content: '';
+      inline-size: 0.32em;
+      block-size: 0.65em;
+      translate: 0 -0.12em;
+      border-inline-end: 0.14em solid currentColor;
+      border-block-end: 0.14em solid currentColor;
+      rotate: 40deg;
+    }
+    .sub:is(:hover, :focus-within) .tool { opacity: 1; }
+    @media (hover: none) {
+      .tool { display: none; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .tool { transition: opacity 0.2s var(--ease-out); }
+      .tool[data-done] .tool-done { animation: copied 0.3s var(--ease-out) both; }
+      .tool[data-done] .tool-done::before { animation: tick-in 0.25s var(--ease-out) 0.1s both; }
+    }
+    .code ins { text-decoration: none; }
+    .text { display: block; }
+
+    /* The bill's own words arrive as HTML; these rules reach into them and stop at the subsection. */
+    @scope (.text) {
+      :global(dfn) { font-style: normal; }
+      :global(ol) { padding-inline-start: 1.5rem; display: grid; gap: 0.4rem; }
+      :global(.term) {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        text-decoration: underline dotted var(--primary);
+        text-decoration-thickness: 0.12em;
+        text-underline-offset: 0.2em;
+        &:hover { color: var(--primary); }
+      }
+    }
+
+    /*
+     * The reader's highlighter: a thick, low underline painted under the glyphs, so it wraps across
+     * lines, keeps the ink's contrast and follows the theme. The same band ties a clause to its note.
+     * Ink on the band measures 8:1 or better light and 5.5:1 or better dark (on the tinted inline
+     * note). At the light theme's 45% the dark band would fall to 4.4:1, so it is thinner ink.
+     */
+    :is(.text, .note) :global(mark) {
+      background: none;
+      color: inherit;
+      text-decoration-line: underline;
+      text-decoration-color: light-dark(oklch(from var(--go) l c h / 0.45), oklch(from var(--go) l c h / 0.3));
+      text-decoration-thickness: 0.55em;
+      text-underline-offset: -0.32em;
+      text-decoration-skip-ink: none;
+    }
+    @media (forced-colors: active) {
+      :is(.text, .note) :global(mark) { text-decoration: none; background: Mark; color: MarkText; }
+    }
+
+    /* Plain-English notes wear daylight amber, the color of "go". */
+    .note {
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: var(--step--1);
+      color: var(--ink);
+    }
+    .note.margin { display: none; }
+    .note.inline {
+      padding: 0.25rem 0.9rem;
+      border-inline-start: 4px solid var(--go);
+      border-radius: var(--radius);
+      border-start-start-radius: 0;
+      border-end-start-radius: 0;
+      background: oklch(from var(--go) l c h / 0.08);
+      & summary { color: var(--go-text); }
+      & p { padding-block-end: 0.6rem; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      @supports (interpolate-size: allow-keywords) {
+        .note.inline::details-content {
+          block-size: 0;
+          overflow: clip;
+          transition: block-size 0.35s var(--ease-out), content-visibility 0.35s allow-discrete;
+        }
+        .note.inline[open]::details-content { block-size: auto; }
+      }
+    }
+
+    /* Wide: notes move into the margin. Grid by default; anchored to their subsection where supported. */
+    @container bill (width >= 54rem) {
+      .code { grid-template-columns: minmax(0, 1fr) 15rem; column-gap: var(--space-l); }
+      .code-title { grid-column: 1; }
+      .sub { grid-column: 1 / -1; grid-template-columns: subgrid; }
+      .sub > :not(.note) { grid-column: 1; }
+      .note.inline { display: none; }
+      .note.margin {
+        display: block;
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        align-self: start;
+        position: relative;
+        padding-inline-start: 1.1rem;
+      }
+      /* A pen bracket, not a ruled border: one drawn stroke, stretched to the note. Alpha mask only. */
+      .note.margin::before {
+        content: '';
+        position: absolute;
+        inset-block: 0.1rem;
+        inset-inline-start: 0;
+        inline-size: 0.6rem;
+        background: var(--go);
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 100' preserveAspectRatio='none'%3E%3Cpath d='M8.5 1.2 C4 1.6 3.4 3 3.6 8 C3.9 30 2.6 52 3.3 74 C3.5 88 3 96.5 8.8 98.8' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+      }
+      .note.margin:dir(rtl)::before { scale: -1 1; }
+      @media (forced-colors: active) {
+        .note.margin::before { forced-color-adjust: none; background: CanvasText; }
+      }
+    }
+    @supports (anchor-name: --a) and (position-anchor: --a) and (anchor-scope: --a) {
+      @container bill (width >= 54rem) {
+        .code { grid-template-columns: minmax(0, 1fr); padding-inline-end: calc(15rem + var(--space-l)); }
+        /* Each subsection is its own --sub, so every note finds the one it belongs to. */
+        .sub { grid-template-columns: minmax(0, 1fr); anchor-name: --sub; anchor-scope: --sub; }
+        .note.margin {
+          position: absolute;
+          position-anchor: --sub;
+          inset-inline-start: calc(anchor(end) + var(--space-l));
+          inset-block-start: anchor(start);
+          inline-size: 15rem;
+        }
+      }
+    }
+
+    .signatures { margin-block-start: var(--space-m); font-size: var(--step--1); color: var(--ink-soft); }
+
+    @keyframes copied {
+      from { opacity: 0; scale: 0.85; }
+    }
+    @keyframes tick-in {
+      from { clip-path: inset(0 0 100% 0); }
+      to { clip-path: inset(0); }
+    }
+
+    .definition {
+      max-inline-size: min(30rem, 100vw - 2rem);
+      padding: var(--space-m);
+      border: 2px solid var(--ink);
+      border-radius: var(--radius);
+      background: var(--paper);
+      color: var(--ink);
+      & h3 { margin-block: 0.25rem 0.75rem; }
+      & p { font-family: var(--font-display), Georgia, serif; }
+      & .definition-kicker { font-family: var(--font-body), system-ui, sans-serif; font-weight: 700; color: var(--ink-soft); font-size: var(--step--1); }
+      & .button { margin-block-start: var(--space-s); }
+      &::backdrop { background: var(--scrim); }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .definition {
+        transition: opacity 0.25s var(--ease-out), scale 0.25s var(--ease-out), overlay 0.25s allow-discrete, display 0.25s allow-discrete;
+        opacity: 0;
+        scale: 0.97;
+        &:popover-open {
+          opacity: 1;
+          scale: 1;
+          @starting-style { opacity: 0; scale: 0.97; }
+        }
+      }
+    }
+  }
+</style>

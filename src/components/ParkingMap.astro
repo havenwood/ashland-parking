@@ -1,0 +1,443 @@
+---
+import downtown from '../../data/downtown.geojson?raw';
+import limits from '../../data/limits.json';
+import Source from './Source.astro';
+import Rich from './Rich.astro';
+import { blockFace } from '../lib/blockface.ts';
+import { projector } from '../lib/project.ts';
+import type { Bbox, Position } from '../lib/project.ts';
+import { area, clipLine, clipRing, compact, simplify } from '../lib/shape.ts';
+import type { Box } from '../lib/shape.ts';
+import { fill } from '../lib/format.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+type Feature = { properties: Record<string, string>; geometry: { type: string; coordinates: any } };
+type Limit = 2 | 4 | 'excluded';
+type LotLimit = 2 | 4 | 'garage' | 'none';
+
+const { locale } = Astro.props;
+const text = t(locale).map;
+type PlaceName = keyof typeof text.places;
+const { features } = JSON.parse(downtown) as { features: Feature[] };
+const { point, width, height, unitsPerMeter } = projector(limits.view as Bbox, 1000);
+/** The 1917 Chautauqua dome, drawn on the Elizabethan Theatre's footprint, where the festival began in 1935. */
+const festival = point([-122.715088, 42.195937]);
+
+const lines = (feature: Feature): Position[][] =>
+  feature.geometry.type === 'LineString' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+const roads = features.filter((feature) => feature.properties.highway);
+const named = (pattern: RegExp) => roads.filter((road) => pattern.test(road.properties.name ?? '')).flatMap(lines);
+const crossStreet = (name: string) => new RegExp(`^((North|South|East|West) )?${name}( Street| Avenue| Way| Boulevard)?$`);
+const segment = (street: string, from: string, to: string) =>
+  blockFace(named(new RegExp(`^${street}$`)), named(crossStreet(from)), named(crossStreet(to)));
+const byId = new Map(features.map((feature) => [feature.properties.id, feature]));
+const osm = (id: string) => {
+  const feature = byId.get(id);
+  if (!feature) throw new Error(`limits.json: ${id} is not in downtown.geojson`);
+  return feature;
+};
+
+/* The ground under the data: clipped just past the view, sub-unit wiggles dropped, whole units. */
+const box: Box = [-10, -10, width + 10, height + 10];
+const projected = (list: Feature[]) => list.flatMap(lines).map((line) => line.map(point));
+const strokes = (list: Feature[]) =>
+  compact(projected(list).flatMap((line) => clipLine(line, box)).map((line) => simplify(line, 0.6)));
+const areas = (list: Feature[], smallest = 0) =>
+  compact(
+    projected(list)
+      .filter((ring) => area(ring) >= smallest)
+      .map((ring) => simplify(clipRing(ring, box), 0.6))
+      .filter((ring) => ring.length > 2),
+    true,
+  );
+
+const places = limits.places as { name: PlaceName; kind: string; at: Position; angle?: number; wrap?: boolean; osm?: string[] }[];
+const landmarkIds = new Set(places.flatMap((place) => place.osm ?? []));
+const isBuilding = ({ properties }: Feature) =>
+  'building' in properties && properties.amenity !== 'parking' && !landmarkIds.has(properties.id);
+const ground = {
+  park: areas(features.filter((feature) => feature.properties.leisure === 'park')),
+  // Sheds and garages under about 20 m² are left out; they only add noise at this scale.
+  buildings: areas(features.filter(isBuilding), 35),
+  landmarks: areas([...landmarkIds].map(osm)),
+  water: strokes(features.filter((feature) => feature.properties.waterway && !feature.properties.tunnel)),
+  streets: strokes(roads.filter((road) => !['primary', 'pedestrian'].includes(road.properties.highway))),
+  mainStreets: strokes(roads.filter((road) => road.properties.highway === 'primary')),
+  pedestrian: areas(roads.filter((road) => road.properties.highway === 'pedestrian')),
+};
+
+const short = (name: string) => name.replace(/ (Street|Avenue|Way|Boulevard)$/, '');
+const describe = (limit: Limit) =>
+  limit === 'excluded' ? text.excludedLong : fill(text.hoursWithPass, { today: limit, pass: limit * 2 });
+
+const faces = (limits.faces as { street: string; from: string; to: string; limit: Limit }[]).map((face) => {
+  const place = fill(text.between, { street: short(face.street), from: face.from, to: face.to });
+  const d = compact([segment(face.street, face.from, face.to).map(point)]);
+  return { ...face, d, place, label: `${place}: ${describe(face.limit)}` };
+});
+
+const lotLabel = (limit: LotLimit) =>
+  limit === 'garage' ? text.garageLong : limit === 'none' ? text.noLimit : describe(limit);
+const lots = (limits.lots as { osm: string; name: { en: string; es: string }; limit: LotLimit }[]).map((lot) => {
+  const name = lot.name[locale];
+  const d = compact(lines(osm(lot.osm)).map((ring) => ring.map(point)), true);
+  return { ...lot, name, d, label: `${name}: ${lotLabel(lot.limit)}` };
+});
+
+/**
+ * A street name set along the middle of a block face. It is nudged off the line in em,
+ * so it clears the line at any label size: centered 1.05em to one side (0.35em drops
+ * the baseline so the letters, not the baseline, are centered).
+ */
+const labels = (limits.labels as { text: string; street: string; from: string; to: string; side: number; minor?: boolean }[]).map((label) => {
+  const points = segment(label.street, label.from, label.to).map(point);
+  const [x1, y1] = points[0];
+  const [x2, y2] = points.at(-1)!;
+  const [x, y] = [((x1 + x2) / 2).toFixed(1), ((y1 + y2) / 2).toFixed(1)];
+  let angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+  if (angle > 90) angle -= 180;
+  if (angle < -90) angle += 180;
+  return {
+    text: label.text,
+    minor: label.minor,
+    x,
+    y,
+    dy: (0.35 + 1.05 * label.side).toFixed(2) + 'em',
+    transform: `rotate(${angle.toFixed(1)} ${x} ${y})`,
+  };
+});
+
+/** Two lines for a long name, broken at the space nearest the middle. */
+const wrap = (name: string) => {
+  const middle = name.length / 2;
+  const spaces = [...name.matchAll(/ /g)].map((match) => match.index);
+  if (!spaces.length) return [name];
+  const split = spaces.reduce((best, index) => (Math.abs(index - middle) < Math.abs(best - middle) ? index : best));
+  return [name.slice(0, split), name.slice(split + 1)];
+};
+const placeLabels = places.map((place) => {
+  const [x, y] = point(place.at);
+  const names = place.wrap ? wrap(text.places[place.name]) : [text.places[place.name]];
+  // Center the block of rows on the anchor: 0.35em puts one row's x-height on it.
+  const first = 0.35 - (names.length - 1) * 0.55;
+  return {
+    kind: place.kind,
+    name: place.name,
+    x,
+    y,
+    rows: names.map((row, index) => ({ row, dy: (index ? 1.1 : first).toFixed(2) + 'em' })),
+    transform: place.angle ? 'rotate(' + place.angle + ' ' + x + ' ' + y + ')' : undefined,
+  };
+});
+
+/* A 500-foot scale bar and a north arrow, in the quiet top-right corner. Walking at 3 mph. */
+const feet = 500;
+const meters = feet * 0.3048;
+const bar = Math.round(meters * unitsPerMeter);
+const scaleLabel = fill(text.scale, { feet, minutes: Math.round(meters / 1.34 / 60) });
+const keyAt = `translate(${width - bar - 70} 34)`;
+
+const park = features.find((feature) => feature.properties.leisure === 'park');
+const rows = [
+  ...faces.map((face) => ({ name: face.place, limit: face.limit as Limit | LotLimit })),
+  ...lots.map((lot) => ({ name: lot.name, limit: lot.limit as Limit | LotLimit })),
+];
+const cell = (limit: Limit | LotLimit, pass: boolean) =>
+  limit === 'excluded' ? (pass ? text.notCovered : fill(text.hours, { n: 2 }))
+  : limit === 'garage' ? (pass ? text.garageWithPass : text.garageToday)
+  : limit === 'none' ? text.noLimit
+  : fill(text.hours, { n: pass ? limit * 2 : limit });
+---
+
+<section id="map" class="section wide" aria-labelledby="map-title">
+  <h2 id="map-title">{text.title}</h2>
+  <p class="lede">{text.intro}</p>
+  <slot name="aside" />
+
+  <div class="map bleed">
+    <fieldset class="toggle chips">
+      <legend>{text.show}</legend>
+      <label><input type="radio" name="map-view" id="today" checked /> {text.today}</label>
+      <label><input type="radio" name="map-view" id="with-pass" /> {text.withPass}</label>
+    </fieldset>
+
+    <figure>
+      <div class="canvas" data-tone>
+        <svg viewBox={`0 0 ${width} ${height}`} role="group" aria-label={text.svgLabel}>
+          <g class="ground" aria-hidden="true">
+            {park && <path class="park" d={ground.park} />}
+            <path class="buildings" d={ground.buildings} />
+            <path class="landmarks" d={ground.landmarks} />
+            <path class="water" d={ground.water} />
+            <path class="street" d={ground.streets} />
+            <path class="street main" d={ground.mainStreets} />
+            <path class="pedestrian" d={ground.pedestrian} />
+          </g>
+          <g class="osf-art" aria-hidden="true" transform={`translate(${festival[0]} ${festival[1]})`}>
+            <path class="osf-halo" d="M-30-11A30 16 0 0 1 30-11ZM-5-31h10v5H-5ZM-6.5-31A6.5 2.5 0 0 1 6.5-31ZM-28-11V-1.5Q0 1.5 28-1.5V-11Z" />
+            <path class="osf-ink" d="M-30-11A30 16 0 0 1 30-11ZM-6.5-31A6.5 2.5 0 0 1 6.5-31Z" />
+            <path class="osf-tone" d="M-24-11A24 16 0 0 1 0-27A14 16 0 0 0-14-11ZM-28-11V-1.5Q0 1.5 28-1.5V-11ZM-5-31h10v5H-5Z" />
+            <path class="osf-paper" d="M-29-11.6h58v1.2h-58Z" />
+            <path class="osf-ink" d="M-2 0V-5A2 2 0 0 1 2-5V0ZM-8.4-8h2.5v2.6h-2.5ZM5.9-8h2.5v2.6H5.9ZM-19-8h2v2.6h-2ZM17-8h2v2.6h-2ZM-25.3-8h1.2v2.6h-1.2ZM24.1-8h1.2v2.6h-1.2ZM-3.6-30h1.2v2.4h-1.2ZM-.6-30h1.2v2.4H-.6ZM2.4-30h1.2v2.4H2.4Z" />
+          </g>
+          <g class="lots">
+            {lots.map((lot) => <path class="lot" d={lot.d} data-limit={lot.limit} role="img"><title>{lot.label}</title></path>)}
+          </g>
+          <g class="faces">
+            {faces.map((face) => <path class="face" d={face.d} data-limit={face.limit} role="img"><title>{face.label}</title></path>)}
+          </g>
+          <g class="labels" aria-hidden="true">
+            {placeLabels.map((place) => (
+              <text x={place.x} y={place.y} transform={place.transform} class={place.kind} data-place={place.name}>
+                {place.rows.map(({ row, dy }) => <tspan x={place.x} dy={dy}>{row}</tspan>)}
+              </text>
+            ))}
+            {labels.map((label) => (
+              <text x={label.x} y={label.y} dy={label.dy} transform={label.transform} class:list={['street-name', { minor: label.minor }]}>{label.text}</text>
+            ))}
+          </g>
+          <g class="key" aria-hidden="true" transform={keyAt}>
+            <text class="scale-label" x="0" y="0">{scaleLabel}</text>
+            <path class="scale-bar" d={`M0 12h${bar / 2}v7h-${bar / 2}z`} />
+            <path class="scale-bar hollow" d={`M${bar / 2} 12h${bar / 2}v7h-${bar / 2}z`} />
+            <g class="north" transform={`translate(${bar + 40} 4)`}>
+              <path d="M0-14 9 14 0 8-9 14z" />
+              <text y="34">{text.north}</text>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <ul class="legend" aria-label={text.legend}>
+          <li>
+            <svg class="swatch" viewBox="0 0 44 16" aria-hidden="true"><path class="face" data-limit="2" d="M6 8H38" /></svg>
+            <span class="today-only">{text.legend2}</span><span class="pass-only">{text.legend4}</span>
+          </li>
+          <li>
+            <svg class="swatch" viewBox="0 0 44 16" aria-hidden="true"><path class="face" data-limit="4" d="M6 8H38" /></svg>
+            <span class="today-only">{text.legend4}</span><span class="pass-only">{text.legend8}</span>
+          </li>
+          <li>
+            <svg class="swatch" viewBox="0 0 44 16" aria-hidden="true"><rect class="lot" data-limit="garage" x="12" y="1" width="20" height="14" rx="2" /></svg>
+            <span class="today-only">{text.legendGarage}</span><span class="pass-only">{text.legendGaragePass}</span>
+          </li>
+          <li>
+            <svg class="swatch" viewBox="0 0 44 16" aria-hidden="true"><rect class="lot" data-limit="none" x="12" y="1" width="20" height="14" rx="2" /></svg>
+            {text.noLimit}
+          </li>
+          <li>
+            <svg class="swatch" viewBox="0 0 44 16" aria-hidden="true"><path class="face" data-limit="excluded" d="M6 8H38" /></svg>
+            {text.excluded}
+          </li>
+        </ul>
+        <p class="source">
+          {text.approximate} <Source id="parkingMap" locale={locale} />. {text.credit} <Source id="osm" locale={locale} label={text.osmContributors} />. <Rich text={text.festivalCredit} locale={locale} />
+        </p>
+      </figcaption>
+    </figure>
+  </div>
+
+  <details class="map-table">
+    <summary>{text.tableSummary}</summary>
+    <div class="table-scroll">
+      <table>
+        <caption>{text.tableCaption}</caption>
+        <thead>
+          <tr><th scope="col">{text.place}</th><th scope="col">{text.today}</th><th scope="col">{text.withPass}</th></tr>
+        </thead>
+        <tbody>
+          {rows.map(({ name, limit }) => (
+            <tr><th scope="row">{name}</th><td>{cell(limit, false)}</td><td>{cell(limit, true)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<style>
+  @layer components {
+    .map {
+      /*
+       * Streets are the lightest ink in daylight (darkest at night), so every time-limit line
+       * and lot sits on 3:1 or better against them. Creek and park are ground, not data: their
+       * inks (--water, --park-ink) stay off the 4-hour blue and the pass green.
+       */
+      --street: var(--paper);
+      display: grid;
+      gap: var(--space-s);
+    }
+    .toggle {
+      border: 0;
+      padding: 0;
+      & legend { font-weight: 700; margin-block-end: 0.5rem; }
+    }
+    figure { display: grid; gap: var(--space-s); }
+
+    /* The canvas rests on the quiet blue-gray and turns mint when the pass view is on. */
+    .canvas {
+      container-type: inline-size;
+      --building: color-mix(in oklab, var(--rule) 55%, var(--surface));
+      --landmark: color-mix(in oklab, var(--ink-soft) 28%, var(--surface));
+      --water-line: color-mix(in oklab, var(--water) 45%, var(--surface));
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .map:has(#with-pass:checked) .canvas { --seed-h: var(--pass-h); }
+    /* More contrast flattens surfaces to paper, so the map keeps a ground of its own for the streets to cut through. */
+    @media (prefers-contrast: more) {
+      .canvas {
+        --building: color-mix(in oklab, var(--rule-strong) 30%, var(--paper));
+        background: color-mix(in oklab, var(--rule-strong) 14%, var(--paper));
+      }
+    }
+    svg { inline-size: 100%; block-size: auto; }
+    /* Line width of a block face, in map units; the legend sets its own. */
+    .canvas svg { --w: 7px; }
+
+    /* Ground: quiet flat fills under the data. */
+    .ground path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .ground .park { fill: var(--park); }
+    .ground .buildings { fill: var(--building); }
+    .ground .landmarks { fill: var(--landmark); }
+    .ground .water { stroke: var(--water-line); stroke-width: 5px; }
+    .ground .street { stroke: var(--street); stroke-width: 13px; }
+    .ground .main { stroke-width: 18px; }
+    .ground .pedestrian { fill: var(--street); }
+
+    /*
+     * The Chautauqua dome on the festival's block, after a Darling Studio postcard (1918–23).
+     * Key ink for the dome, cap, windows and door, a flat mix of the soft ink for the wall,
+     * lantern and lit gore, and street paper for the cornice and a halo like the labels' halo.
+     */
+    .osf-art { --osf-tone: color-mix(in oklab, var(--ink-soft) 60%, var(--surface)); }
+    .osf-halo { fill: var(--street); stroke: var(--street); stroke-width: 5px; stroke-linejoin: round; }
+    .osf-ink { fill: var(--ink); }
+    .osf-tone { fill: var(--osf-tone); }
+    .osf-paper { fill: var(--street); }
+
+    /*
+     * Data: color is the time limit, and so is the line: dotted 2 hours, dashed 4, solid 8.
+     * Today: 2 hours vermilion, 4 hours blue. With a pass each steps up one, to blue and
+     * pass green, and the garage turns amber, free by day. Paid, excluded and unposted stay neutral.
+     */
+    .face {
+      fill: none;
+      stroke: var(--hours-2);
+      stroke-width: var(--w);
+      stroke-linecap: round;
+      stroke-dasharray: 0 calc(var(--w) * 1.7);
+      &[data-limit='excluded'] {
+        stroke: var(--neutral);
+        stroke-width: calc(var(--w) * 0.6);
+        stroke-dasharray: 0 calc(var(--w) * 1.1);
+      }
+    }
+    .face[data-limit='4'], .map:has(#with-pass:checked) .face[data-limit='2'] {
+      stroke: var(--hours-4);
+      stroke-linecap: butt;
+      stroke-dasharray: calc(var(--w) * 2.4) calc(var(--w) * 0.8);
+    }
+    .lot {
+      fill: var(--hours-2);
+      stroke: var(--street);
+      stroke-width: 2.5px;
+      stroke-linejoin: round;
+      &[data-limit='garage'] { fill: var(--neutral); }
+      &[data-limit='none'] { fill: var(--no-limit); stroke: var(--neutral); stroke-width: 2px; }
+    }
+    .lot[data-limit='4'], .map:has(#with-pass:checked) .lot[data-limit='2'] { fill: var(--hours-4); }
+    .map:has(#with-pass:checked) {
+      & .face[data-limit='4'] { stroke: var(--hours-8); stroke-dasharray: none; }
+      & .lot[data-limit='4'] { fill: var(--hours-8); }
+      & .lot[data-limit='garage'] { fill: var(--go); }
+      & .today-only { display: none; }
+      & .pass-only { display: inline; }
+    }
+    .pass-only { display: none; }
+    @media (hover: hover) {
+      .faces .face:hover { --w: 11px; }
+      .lots .lot:hover { stroke: var(--ink); stroke-width: 3px; }
+    }
+
+    /* Names: set on a halo of street paper so they read over buildings and lines. */
+    .labels text, .key text {
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      fill: var(--ink-soft);
+      paint-order: stroke;
+      stroke: var(--street);
+      stroke-width: 5px;
+      stroke-linejoin: round;
+      text-anchor: middle;
+    }
+    .labels .area {
+      font-family: var(--font-display), Georgia, serif;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      fill: var(--ink);
+    }
+    .labels [data-place='park'] { font-size: 26px; fill: var(--park-ink); }
+    .labels .water { font-size: 14px; letter-spacing: 0.1em; fill: var(--water); }
+    .labels .building { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .key .scale-label { text-anchor: start; font-size: 14px; }
+    .key .scale-bar { fill: var(--ink-soft); stroke: var(--ink-soft); stroke-width: 1.5px; }
+    .key .hollow { fill: var(--street); }
+    .key .north path { fill: var(--ink-soft); }
+    .key .north text { font-family: var(--font-display), Georgia, serif; font-size: 18px; }
+
+    /* Phones: the same map at a third of the size, so lines and names grow and minor names step aside. */
+    @container (inline-size < 40rem) {
+      .canvas svg { --w: 13px; }
+      .ground .street { stroke-width: 20px; }
+      .ground .main { stroke-width: 26px; }
+      .ground .water { stroke-width: 6px; }
+      .labels text { stroke-width: 8px; }
+      .labels :is(.street-name, .area, .building) { font-size: 28px; }
+      .labels [data-place='park'] { font-size: 36px; }
+      .labels :is(.minor, .water, .building:not([data-place='garage'])) { display: none; }
+      /* The festival's name steps aside, so its drawing does too. */
+      .key, .osf-art { display: none; }
+    }
+
+    /*
+     * Forced colors: the map keeps its own inks on its own ground, since color and line pattern
+     * both carry the limits, inside a system-color frame; legend swatches sit on paper to match.
+     */
+    @media (forced-colors: active) {
+      .canvas, .legend .swatch { forced-color-adjust: none; }
+      .canvas { border-color: CanvasText; }
+      .legend .swatch { background: var(--paper); outline: 1px solid CanvasText; }
+    }
+
+    .legend {
+      --w: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+      padding: 0;
+      list-style: none;
+      font-size: var(--step--1);
+      font-weight: 700;
+      & li { display: inline-flex; align-items: center; gap: 0.5rem; }
+      & .swatch { inline-size: 2.75rem; flex: none; overflow: visible; }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .canvas { transition: --surface 0.6s var(--ease-out), --rule 0.6s var(--ease-out); }
+      .face, .lot {
+        transition: stroke 0.5s var(--ease-out), fill 0.5s var(--ease-out), stroke-width 0.2s var(--ease-out);
+      }
+      @supports (transition-delay: calc(sibling-index() * 1ms)) {
+        .faces .face { transition-delay: calc(min(sibling-index(), 24) * 15ms); }
+      }
+    }
+  }
+</style>

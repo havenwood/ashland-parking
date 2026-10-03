@@ -1,0 +1,336 @@
+@layer reset, tokens, base, layout, components, utilities;
+
+/*
+ * Registered custom properties: two numeric knobs, and the colors that ease when they change.
+ * A registered <color> computes to a real color on each element, so it can transition.
+ */
+@property --brand-hue {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 180;
+}
+@property --seed-h {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 250;
+}
+@property --surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+@property --rule {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  * { margin: 0; }
+  html { -webkit-text-size-adjust: none; text-size-adjust: none; }
+  img, svg { display: block; max-inline-size: 100%; }
+  input, button, select, textarea { font: inherit; color: inherit; }
+}
+
+@layer tokens {
+  :root {
+    color-scheme: light dark;
+
+    /*
+     * Color system. School: modern civic, sign-green ("Permit"). Flat like a street sign:
+     * solid fills, no gradients, no shadows, one small radius. Green on a parking sign means
+     * "you may park here" (MUTCD §2B.53), so the pass wears sign green and today's 2-hour
+     * squeeze wears no-parking vermilion, on a crisp blue-white page with spruce ink.
+     *
+     * Roles. Components name what a color does, never how it looks:
+     *   --paper, --surface, --ink, --ink-soft, --rule, --rule-strong   the page and its text
+     *   --primary = --pass = --hours-8 = --yes                         the pass, and every link and button
+     *   --today = --hours-2, --today-text                              today's 2-hour squeeze, the draft mark
+     *   --hours-4, --go (the garage, free by day), --neutral = --no    the rest of the map's encoding
+     *   --focus                                                        the focus ring
+     *
+     * Derivation. Base roles are hand-tuned OKLCH pairs. Everything else comes from them:
+     * surfaces, rules and washes step the paper's lightness and chroma, -text variants step a
+     * role's lightness, tints are a role at reduced alpha (relative color syntax), and mixes
+     * use color-mix() in OKLab. Retune a base role and everything derived from it follows.
+     *
+     * Light and dark. Every role is a light-dark() pair, and a derived role applies the same
+     * kind of step to each branch. Lightness is pinned per role, so contrast holds in both:
+     * text 4.5:1 or better, large text and graphics 3:1 or better, on paper and on every
+     * surface tone (audited, and checked by axe and the map contrast test).
+     * prefers-contrast: more strengthens the same roles; forced-colors hands over to system colors.
+     *
+     * Knobs. --brand-hue turns the pass and all that derives from it. --seed-h is the hue of
+     * the quiet surfaces: blue-gray at rest; a [data-tone] element sets its own, and
+     * data-tone="pass" turns mint, so color arrives where the pass applies.
+     */
+    --brand-hue: 180;
+    --seed-h: 250;
+    --pass-h: var(--brand-hue);
+
+    /* Base roles. */
+    --paper: light-dark(oklch(98.6% 0.005 250), oklch(20% 0.02 250));
+    --ink: light-dark(oklch(25% 0.04 215), oklch(95% 0.01 215));
+    --ink-soft: light-dark(oklch(45% 0.025 230), oklch(84% 0.02 230));
+    --primary: light-dark(oklch(44.5% 0.08 var(--brand-hue)), oklch(77% 0.13 var(--brand-hue)));
+    --today: light-dark(oklch(52.5% 0.192 33), oklch(71.5% 0.16 33));
+    --hours-4: light-dark(oklch(51.5% 0.16 255), oklch(63% 0.15 255));
+    --go: light-dark(oklch(63.5% 0.133 75), oklch(86% 0.119 75));
+    --neutral: light-dark(oklch(60% 0.015 230), oklch(54% 0.015 230));
+    --focus: light-dark(oklch(50% 0.22 275), oklch(90% 0.083 75));
+
+    /* Derived roles. Borders of inputs and choices: 3:1 against the paper. */
+    --rule-strong: light-dark(
+      oklch(from var(--paper) calc(l - 0.386) calc(c + 0.015) h),
+      oklch(from var(--paper) calc(l + 0.36) calc(c + 0.01) h));
+    /* Small text in a role's color, stepped for 4.5:1 where the role itself is graphic-strength. */
+    --today-text: light-dark(var(--today), oklch(from var(--today) calc(l + 0.085) calc(c - 0.045) h));
+    --go-text: light-dark(oklch(from var(--go) calc(l - 0.135) calc(c - 0.028) h), var(--go));
+    /* The calculator's panel at rest and at full relief: a step off the paper, then mint. */
+    --today-wash: light-dark(
+      oklch(from var(--paper) calc(l - 0.031) calc(c + 0.007) h),
+      oklch(from var(--paper) calc(l + 0.07) calc(c + 0.005) h));
+    --pass-wash: oklch(from var(--today-wash) l calc(c + 0.02) var(--pass-h));
+    /* Behind a popover: ink over the light page, paper over the dark one. */
+    --scrim: light-dark(oklch(from var(--ink) l c h / 0.3), oklch(from var(--paper) l c h / 0.7));
+
+    /* Data roles, so a component says what a mark means, not which color it is. */
+    --pass: var(--primary);
+    --hours-2: var(--today);
+    --hours-8: var(--pass);
+    --yes: var(--pass);
+    --no: var(--neutral);
+    --no-limit: oklch(from var(--neutral) l c h / 0.3);
+    /* Map ground: the soft ink with a creek-blue cast and a park-green one. */
+    --water: oklch(from var(--ink-soft) l calc(c + 0.06) h);
+    --park-ink: oklch(from var(--ink-soft) l calc(c + 0.07) 145);
+    --park: oklch(from var(--park-ink) l c h / 0.14);
+
+    --step--1: clamp(0.9rem, 0.87rem + 0.15vw, 0.97rem);
+    --step-0: clamp(1.06rem, 1rem + 0.3vw, 1.19rem);
+    --step-1: clamp(1.22rem, 1.14rem + 0.45vw, 1.45rem);
+    --step-3: clamp(1.8rem, 1.5rem + 1.6vw, 2.65rem);
+    --step-4: clamp(2.4rem, 1.7rem + 3.3vw, 4.35rem);
+
+    /* Friendly density: sections sit close enough to read as one page, not a stack of documents. */
+    --space-s: clamp(0.7rem, 0.66rem + 0.2vw, 0.85rem);
+    --space-m: clamp(1.1rem, 1rem + 0.45vw, 1.4rem);
+    --space-l: clamp(1.6rem, 1.35rem + 1.2vw, 2.5rem);
+    --space-xl: clamp(2.75rem, 2.1rem + 3vw, 4.5rem);
+
+    --measure: 66ch;
+    /* One small radius everywhere, like the corner of a street sign. */
+    --radius: 4px;
+    --tap: 2.75rem;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Quiet surfaces: a step off the paper, in the seed hue. Declared again on each [data-tone] element. */
+  :where(:root, [data-tone]) {
+    --surface: light-dark(
+      oklch(from var(--paper) calc(l - 0.028) calc(c + 0.009) var(--seed-h)),
+      oklch(from var(--paper) calc(l + 0.045) calc(c + 0.005) var(--seed-h)));
+    --rule: light-dark(
+      oklch(from var(--paper) calc(l - 0.106) calc(c + 0.011) var(--seed-h)),
+      oklch(from var(--paper) calc(l + 0.17) calc(c + 0.005) var(--seed-h)));
+  }
+  [data-tone='pass'] { --seed-h: var(--pass-h); }
+
+  /* More contrast: darker ink and pass, stronger text variants and borders, flat surfaces. */
+  @media (prefers-contrast: more) {
+    :root {
+      --ink: light-dark(oklch(18% 0.032 215), oklch(98.5% 0.01 215));
+      --ink-soft: var(--ink);
+      --primary: light-dark(oklch(37.5% 0.067 var(--brand-hue)), oklch(84% 0.13 var(--brand-hue)));
+      --neutral: light-dark(oklch(52% 0.015 230), oklch(62% 0.015 230));
+      --today-text: light-dark(
+        oklch(from var(--today) calc(l - 0.07) calc(c - 0.025) h),
+        oklch(from var(--today) calc(l + 0.145) calc(c - 0.084) h));
+      --go-text: light-dark(
+        oklch(from var(--go) calc(l - 0.205) calc(c - 0.043) h),
+        oklch(from var(--go) calc(l + 0.05) calc(c - 0.045) h));
+      --rule-strong: light-dark(
+        oklch(from var(--paper) calc(l - 0.536) calc(c + 0.015) h),
+        oklch(from var(--paper) calc(l + 0.55) calc(c + 0.01) h));
+    }
+    :where(:root, [data-tone]) {
+      --surface: var(--paper);
+      --rule: var(--rule-strong);
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-padding-block-start: 5rem;
+    accent-color: var(--primary);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+    @supports (interpolate-size: allow-keywords) {
+      :root { interpolate-size: allow-keywords; }
+    }
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body), system-ui, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.55;
+    min-block-size: 100dvb;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display), Georgia, serif;
+    font-optical-sizing: auto;
+    font-weight: 560;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  h1 { font-size: var(--step-4); font-weight: 480; }
+  h2 { font-size: var(--step-3); }
+  h3 { font-size: var(--step-1); line-height: 1.25; }
+  p, li, dd { max-inline-size: var(--measure); }
+  @supports (text-wrap: balance) {
+    h1, h2, h3 { text-wrap: balance; }
+  }
+  @supports (text-wrap: pretty) {
+    p, li, dd, td { text-wrap: pretty; }
+  }
+  @supports (text-box: trim-both cap alphabetic) {
+    h1, h2, h3 { text-box: trim-both cap alphabetic; }
+  }
+  a {
+    color: var(--primary);
+    text-decoration-thickness: 0.07em;
+    text-underline-offset: 0.18em;
+    &:hover { text-decoration-thickness: 0.14em; }
+  }
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+  }
+  /* Every disclosure on the site: a full-size target in the link color. */
+  summary {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--tap);
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+  }
+  strong { font-weight: 700; }
+  small { font-size: var(--step--1); }
+  table { border-collapse: collapse; inline-size: 100%; font-size: var(--step--1); }
+  th, td {
+    padding-block: 0.55rem;
+    padding-inline: 0 0.75rem;
+    border-block-end: 1px solid var(--rule);
+    text-align: start;
+    vertical-align: top;
+  }
+  thead th { font-weight: 700; border-block-end: 2px solid var(--ink); }
+  caption { text-align: start; font-weight: 700; padding-block-end: 0.5rem; }
+}
+
+@layer layout {
+  .page {
+    display: grid;
+    grid-template-columns:
+      [full-start] minmax(1rem, 1fr)
+      [wide-start] minmax(0, 12rem)
+      [content-start] min(var(--measure), 100% - 2rem) [content-end]
+      minmax(0, 12rem) [wide-end]
+      minmax(1rem, 1fr) [full-end];
+    & > * { grid-column: content; }
+    /* A wide section keeps its text on the content column; only .bleed children use the margins. */
+    & > .wide {
+      grid-column: wide;
+      grid-template-columns: subgrid;
+      column-gap: 0;
+      & > * { grid-column: content; }
+      & > .bleed { grid-column: wide; }
+    }
+  }
+  .section {
+    padding-block: var(--space-xl) 0;
+    display: grid;
+    gap: var(--space-m);
+    align-content: start;
+    & > h2 { margin-block-end: calc(var(--space-s) * -0.5); }
+  }
+  .lede { font-size: var(--step-1); line-height: 1.4; color: var(--ink-soft); }
+}
+
+@layer components {
+  .button {
+    --button-bg: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    min-block-size: var(--tap);
+    padding: 0.6rem 1.15rem;
+    border-radius: var(--radius);
+    border: 2px solid var(--button-bg);
+    background: var(--button-bg);
+    /* Paper is the fallback; a back-to-back fallback declaration would be lost to the minifier. */
+    color: var(--paper);
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    @supports (color: contrast-color(red)) {
+      color: contrast-color(var(--button-bg));
+    }
+    @supports (text-box: trim-both cap alphabetic) {
+      text-box: trim-both cap alphabetic;
+    }
+    &:hover { background: oklch(from var(--button-bg) calc(l - 0.06) c h); }
+    &.quiet { background: transparent; color: var(--button-bg); }
+    &.quiet:hover { background: oklch(from var(--button-bg) l c h / 0.1); }
+  }
+
+  /* A row of either-or choices, as bordered labels; the chosen one takes the pass tint. */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    & label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-block-size: var(--tap);
+      padding-inline: 0.9rem 1.1rem;
+      border: 2px solid var(--rule-strong);
+      border-radius: var(--radius);
+      font-weight: 700;
+      cursor: pointer;
+      &:has(:checked) { border-color: var(--primary); background: oklch(from var(--primary) l c h / 0.12); }
+    }
+    & input { inline-size: 1.1rem; block-size: 1.1rem; margin: 0; }
+  }
+
+  /* Forced colors: system-color borders, with the chosen option marked in Highlight. */
+  @media (forced-colors: active) {
+    .button, .chips label { border-color: ButtonText; }
+    .chips label:has(:checked) { border-color: Highlight; }
+  }
+
+  .source {
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+    & a { color: inherit; }
+  }
+  .table-scroll { overflow-x: auto; }
+}
+
+@layer utilities {
+  .visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

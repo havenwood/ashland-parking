@@ -1,0 +1,150 @@
+---
+import Rich from './Rich.astro';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+import { withBase } from '../lib/url.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale).support;
+const base = withBase('').replace(/\/$/, '');
+const mailto = `mailto:${text.emailAddress}?subject=${encodeURIComponent(text.mailSubject)}&body=${encodeURIComponent(text.mailBody)}`;
+---
+
+<section id="support" class="section" aria-labelledby="support-title">
+  <h2 id="support-title">{text.title}</h2>
+  <p class="lede">{text.intro}</p>
+
+  <div class="ways">
+    <section>
+      <h3>{text.emailTitle}</h3>
+      <p>{text.emailBody}</p>
+      <p><a class="button" href={mailto}>{text.emailButton}</a></p>
+      <p class="address"><code>{text.emailAddress}</code></p>
+      <p class="source"><Rich text={text.emailOr} locale={locale} /></p>
+    </section>
+
+    <section>
+      <h3>{text.printTitle}</h3>
+      <ul class="files">
+        <li><a href={`${base}/ashland-worker-parking-one-pager.pdf`} type="application/pdf" hreflang="en">{text.onePager}</a></li>
+        <li><a href={`${base}/ashland-worker-parking-one-pager-es.pdf`} type="application/pdf" hreflang="es">{text.onePagerEs}</a></li>
+        <li><a href={`${base}/ashland-worker-parking-counter-card.pdf`} type="application/pdf" hreflang="en">{text.counterCard}</a></li>
+        <li><a href={`${base}/ashland-worker-parking-counter-card-es.pdf`} type="application/pdf" hreflang="es">{text.counterCardEs}</a></li>
+        <li><a href={`${base}/ashland-worker-parking-ordinance.pdf`} type="application/pdf" hreflang="en">{text.billPdf}</a></li>
+        <li><a href={`${base}/ashland-worker-parking-memo.pdf`} type="application/pdf" hreflang="en">{text.memoPdf}</a></li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="meeting">
+    <h3>{text.testifyTitle}</h3>
+    <!-- A ticket: when and where on the main part, the public forum on the stub past the perforation. -->
+    <div class="ticket-wrap">
+      <div class="ticket">
+        <div class="ticket-main">
+          <p class="ticket-title">{text.ticketTitle}</p>
+          <p><Rich text={text.testify[0]} locale={locale} /></p>
+        </div>
+        <div class="ticket-stub">
+          <p class="stub-title">{text.forumTitle}</p>
+          <p class="stub-length" aria-hidden="true"><span class="stub-big">{text.forumNumber}</span> {text.forumUnit}</p>
+          <p class="stub-body"><Rich text={text.testify[1]} locale={locale} /></p>
+        </div>
+      </div>
+    </div>
+    {text.testify.slice(2).map((item) => <p><Rich text={item} locale={locale} /></p>)}
+  </section>
+</section>
+
+<style>
+  @layer components {
+    .ways {
+      display: grid;
+      gap: var(--space-l);
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+      & > section { display: grid; gap: var(--space-s); align-content: start; }
+    }
+    ul { padding-inline-start: 1.2rem; display: grid; gap: 0.6rem; }
+    .files {
+      list-style: none;
+      padding: 0;
+      & a { display: inline-flex; align-items: center; min-block-size: var(--tap); font-weight: 700; }
+    }
+    .meeting { display: grid; gap: var(--space-s); margin-block-start: var(--space-s); }
+
+    /*
+     * The meeting as a ticket: quiet stock, a dashed perforation, and a half-circle notch cut at
+     * each end of it with an alpha mask, so the page shows through.
+     */
+    .ticket-wrap { container: ticket / inline-size; }
+    .ticket {
+      --notch: 0.7rem;
+      --cut-a: 0 100%;
+      --cut-b: 100% 100%;
+      display: grid;
+      & > * {
+        padding: 1rem 1.2rem;
+        background: var(--surface);
+        mask:
+          radial-gradient(circle at var(--cut-a), transparent var(--notch), black calc(var(--notch) + 0.5px)),
+          radial-gradient(circle at var(--cut-b), transparent var(--notch), black calc(var(--notch) + 0.5px));
+        mask-composite: intersect;
+      }
+      & p { max-inline-size: none; }
+    }
+    .ticket-main { border-radius: var(--radius) var(--radius) 0 0; }
+    .ticket-stub {
+      --cut-a: 0 0;
+      --cut-b: 100% 0;
+      display: grid;
+      align-content: start;
+      gap: 0.35rem;
+      border-block-start: 2px dashed var(--ink-soft);
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
+    .ticket-title {
+      margin-block-end: 0.5rem;
+      font-family: var(--font-display), Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 560;
+      line-height: 1.2;
+    }
+    .stub-title { font-weight: 700; }
+    .stub-length { font-weight: 700; color: var(--ink-soft); }
+    .stub-big {
+      font-family: var(--font-display), Georgia, serif;
+      font-size: 2.6rem;
+      font-weight: 450;
+      line-height: 1;
+      color: var(--primary);
+      font-variant-numeric: lining-nums;
+    }
+    .stub-body { font-size: var(--step--1); }
+    @container ticket (inline-size >= 34rem) {
+      .ticket { grid-template-columns: minmax(0, 3fr) minmax(14rem, 2fr); }
+      .ticket-main { --cut-a: 100% 0; border-radius: var(--radius) 0 0 var(--radius); }
+      .ticket-stub {
+        --cut-b: 0 100%;
+        border-block-start: 0;
+        border-inline-start: 2px dashed var(--ink-soft);
+        border-radius: 0 var(--radius) var(--radius) 0;
+      }
+    }
+    @media (forced-colors: active) {
+      .ticket > * { border: 2px solid CanvasText; }
+      .ticket-stub { border-block-start-style: dashed; }
+      @container ticket (inline-size >= 34rem) {
+        .ticket-stub { border-block-start-style: solid; border-inline-start-style: dashed; }
+      }
+    }
+
+    .address code {
+      font-family: inherit;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+      user-select: all;
+    }
+  }
+</style>

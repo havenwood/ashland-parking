@@ -1,0 +1,155 @@
+---
+import { Font } from 'astro:assets';
+import { getRelativeLocaleUrl } from 'astro:i18n';
+import '../styles/global.css';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+import { withBase } from '../lib/url.ts';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path after the locale prefix, e.g. '' or 'bill/print/'. */
+  path?: string;
+  /** Section links for the sticky nav; omit on pages without one. */
+  nav?: { href: string; label: string }[];
+  /** Locales this page exists in, for hreflang and the language switch. */
+  locales?: Locale[];
+}
+
+const { title, description, path = '', nav, locales = ['en', 'es'] } = Astro.props;
+const locale = (Astro.currentLocale ?? 'en') as Locale;
+const text = t(locale);
+const other: Locale = locale === 'en' ? 'es' : 'en';
+const url = (lang: Locale) => getRelativeLocaleUrl(lang, path);
+const absolute = (lang: Locale) => new URL(url(lang), Astro.site).href;
+const ogLocale = (lang: Locale) => (lang === 'en' ? 'en_US' : 'es_US');
+const ogImage = new URL(withBase('og.png'), Astro.site).href;
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={absolute(locale)} />
+    {locales.length > 1 && locales.map((lang) => <link rel="alternate" hreflang={lang} href={absolute(lang)} />)}
+    {locales.length > 1 && <link rel="alternate" hreflang="x-default" href={absolute('en')} />}
+    <meta name="theme-color" content="#f8fbfe" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f171f" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={absolute(locale)} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={text.meta.ogAlt} />
+    <meta property="og:locale" content={ogLocale(locale)} />
+    {locales.filter((lang) => lang !== locale).map((lang) => <meta property="og:locale:alternate" content={ogLocale(lang)} />)}
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href={withBase('favicon.svg')} type="image/svg+xml" />
+    <Font cssVariable="--font-display" preload={[{ subset: 'latin' }]} />
+    <Font cssVariable="--font-body" preload={[{ style: 'normal', subset: 'latin' }]} />
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{text.skip}</a>
+    <header class="masthead">
+      <p class="ribbon"><strong>{text.draft}</strong> <span>{text.draftNote}</span></p>
+      {nav && (
+        <nav class="sections" aria-label={text.sectionsLabel}>
+          <ul>
+            {nav.map(({ href, label }) => <li><a href={href}>{label}</a></li>)}
+          </ul>
+          {locales.includes(other) && (
+            <a class="lang" href={url(other)} hreflang={other} lang={other}>{text.otherLanguage}</a>
+          )}
+        </nav>
+      )}
+    </header>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <slot name="footer" />
+  </body>
+</html>
+
+<style>
+  @layer components {
+    .skip {
+      position: absolute;
+      inset-inline-start: 1rem;
+      inset-block-start: -10rem;
+      z-index: 10;
+      padding: 0.75rem 1rem;
+      background: var(--ink);
+      color: var(--paper);
+      border-radius: var(--radius);
+      @supports (color: contrast-color(red)) {
+        color: contrast-color(var(--ink));
+      }
+      &:focus { inset-block-start: 1rem; }
+    }
+    .masthead {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 5;
+      background: var(--paper);
+      border-block-end: 1px solid var(--rule);
+    }
+    /* The draft ribbon wears today's vermilion, like a no-parking sign. */
+    .ribbon {
+      max-inline-size: none;
+      padding: 0.35rem 1rem;
+      background: var(--today);
+      color: var(--paper);
+      font-size: var(--step--1);
+      text-align: center;
+      @supports (color: contrast-color(red)) {
+        color: contrast-color(var(--today));
+      }
+    }
+    @media (width < 34rem) {
+      .ribbon span { display: none; }
+    }
+    /* Forced colors drop the ribbon's fill, so a system-color edge keeps it a band. */
+    @media (forced-colors: active) {
+      .ribbon { border-block-end: 2px solid CanvasText; }
+    }
+    .sections {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      max-inline-size: calc(var(--measure) + 24rem);
+      margin-inline: auto;
+      padding-inline: 1rem;
+      & ul {
+        display: flex;
+        gap: 0.25rem 1.25rem;
+        flex: 1;
+        list-style: none;
+        padding: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+        /* Fade the clipped end so a scrolling nav reads as more to see, not cut off. */
+        mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent);
+      }
+      & li { flex: none; }
+      & a {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: var(--tap);
+        color: var(--ink-soft);
+        text-decoration: none;
+        font-size: var(--step--1);
+        font-weight: 700;
+        &:hover { color: var(--ink); text-decoration: underline; }
+      }
+      & .lang { flex: none; color: var(--primary); }
+    }
+    main:focus { outline: none; }
+  }
+</style>

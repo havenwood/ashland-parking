@@ -1,0 +1,24 @@
+{
+  "name": "ashland-parking",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/make-pdfs.ts",
+    "preview": "astro preview",
+    "test": "node --test 'src/lib/*.test.ts' && playwright test",
+    "test:unit": "node --test 'src/lib/*.test.ts'",
+    "typecheck": "npx --yes -p @astrojs/check -p typescript@6 astro-check",
+    "fetch-osm": "node scripts/fetch-osm.ts"
+  },
+  "dependencies": {
+    "astro": "^7.3.5"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0"
+  }
+}

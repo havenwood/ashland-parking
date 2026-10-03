@@ -1,0 +1,86 @@
+---
+import Rich from './Rich.astro';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale).fair;
+const others = text.others;
+---
+
+<section id="fair" class="section wide" aria-labelledby="fair-title">
+  <h2 id="fair-title">{text.title}</h2>
+  <slot name="aside" />
+  <ul class="reasons">
+    {text.cards.map((card) => (
+      <li>
+        <h3>{card.title}</h3>
+        <p><Rich text={card.body} locale={locale} /></p>
+      </li>
+    ))}
+  </ul>
+
+  <section class="others" aria-labelledby="others-title">
+    <h3 id="others-title">{others.title}</h3>
+    <ul class="precedents">
+      {[others.free, others.stub].map((item) => (
+        <li>
+          <h4>{item.title}</h4>
+          <p><Rich text={item.body} locale={locale} /></p>
+        </li>
+      ))}
+    </ul>
+    <p class="elsewhere"><Rich text={others.paid} locale={locale} /> <Rich text={others.where} locale={locale} /></p>
+    <p class="ours">{others.ashland}</p>
+  </section>
+</section>
+
+<style>
+  @layer components {
+    /* Each reason hangs from a pass-green rule, like the top of a parking sign. */
+    .reasons {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      gap: var(--space-m) var(--space-l);
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+      & li {
+        display: grid;
+        gap: 0.5rem;
+        align-content: start;
+        padding-block-start: var(--space-s);
+        border-block-start: 3px solid var(--pass);
+      }
+    }
+    .others {
+      display: grid;
+      gap: var(--space-s);
+      margin-block-start: var(--space-m);
+    }
+    .precedents {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      gap: var(--space-s);
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+      & li {
+        display: grid;
+        gap: 0.4rem;
+        align-content: start;
+        padding: var(--space-m);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+      & h4 { font-family: var(--font-display), Georgia, serif; font-size: var(--step-1); font-weight: 600; line-height: 1.2; }
+    }
+    .elsewhere { color: var(--ink-soft); font-size: var(--step--1); }
+    .ours {
+      font-family: var(--font-display), Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 600;
+      color: var(--pass);
+    }
+  }
+</style>

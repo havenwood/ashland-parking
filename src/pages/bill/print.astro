@@ -1,0 +1,22 @@
+---
+import Base from '../../layouts/Base.astro';
+import BillDocument from '../../components/BillDocument.astro';
+import { withBase } from '../../lib/url.ts';
+import '../../styles/document.css';
+---
+
+<Base
+  title="Draft ordinance: Downtown Worker Parking Pass (AMC 11.26.105)"
+  description="Print-ready draft ordinance adding AMC 11.26.105, a Downtown Worker Parking Pass, for the Ashland City Council."
+  path="bill/print/"
+  locales={['en']}
+>
+  <nav class="doc-bar" aria-label="Bill">
+    <a class="button quiet" href={withBase('#bill')}>Read it with plain-English notes</a>
+    <a class="button" href={withBase('ashland-worker-parking-ordinance.pdf')} type="application/pdf">Download PDF</a>
+    <a class="button quiet" href={withBase('ashland-worker-parking-memo.pdf')} type="application/pdf">Cover memo (PDF)</a>
+  </nav>
+  <div class="sheet">
+    <BillDocument />
+  </div>
+</Base>

@@ -1,0 +1,33 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from './Hero.astro';
+import Calculator from './Calculator.astro';
+import ParkingMap from './ParkingMap.astro';
+import Qualify from './Qualify.astro';
+import Bill from './Bill.astro';
+import Fair from './Fair.astro';
+import Support from './Support.astro';
+import Footer from './Footer.astro';
+import Photo from './Photo.astro';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale);
+const nav = Object.entries(text.nav).map(([id, label]) => ({ href: `#${id}`, label }));
+---
+
+<Base title={text.meta.title} description={text.meta.description} nav={nav}>
+  <div class="page">
+    <Hero locale={locale} />
+    <ParkingMap locale={locale}><Photo id="eastMain" slot="aside" /></ParkingMap>
+    <Calculator locale={locale} />
+    <Qualify locale={locale} />
+    <Bill locale={locale} />
+    <Fair locale={locale}><Photo id="plaza" slot="aside" /></Fair>
+    <Support locale={locale} />
+  </div>
+  <Footer slot="footer" locale={locale} />
+</Base>

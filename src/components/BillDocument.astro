@@ -1,0 +1,82 @@
+---
+import { getEntry } from 'astro:content';
+import { parseBill } from '../lib/bill.ts';
+import type { Block } from '../lib/bill.ts';
+
+const entry = await getEntry('ordinance', 'ordinance');
+if (!entry?.body) throw new Error('src/content/ordinance.md is missing.');
+const bill = entry.data;
+const sections = parseBill(entry.body);
+const lines = (blocks: Block[]) => blocks.flatMap((block) => (block.type === 'p' ? [block.text] : block.items));
+/** Splits `“Term” means …` so the term can be marked as its defining instance. */
+const definition = (text: string) => text.match(/^“([^”]+)”( means .+)$/);
+---
+
+<article class="doc ordinance" lang="en">
+  <hgroup>
+    <p class="doc-number">ORDINANCE NO. ______</p>
+    <h1 class="doc-title">{bill.title}</h1>
+  </hgroup>
+  <p class="draft-label">Draft language proposed by residents for review by City staff and the City Attorney. Not adopted.</p>
+  <p class="annotation">{bill.annotation}</p>
+
+  <p>WHEREAS, Article 2. Section 1 of the Ashland City Charter provides:</p>
+  <blockquote>{bill.charter}</blockquote>
+  {bill.findings.map((finding) => <p>WHEREAS, {finding}</p>)}
+
+  <p class="enacting">THE PEOPLE OF THE CITY OF ASHLAND DO ORDAIN AS FOLLOWS:</p>
+
+  {sections.map((section) => (
+    <>
+      <p><strong>SECTION {section.number}.</strong>{section.heading && <> <strong>{section.heading}</strong></>} {lines(section.blocks).join(' ')}</p>
+      {section.subsections.length > 0 && (
+        <ins class="code">
+          <p class="code-heading">{bill.codeSection} {bill.codeTitle}</p>
+          {section.subsections.map((sub) => {
+            const [first, ...rest] = sub.blocks;
+            const lead = first?.type === 'p' ? first.text : '';
+            return (
+              <>
+                <p class="sub"><span class="letter">{sub.letter}.</span>{' '}<span class="sub-text">{sub.heading} {lead}</span></p>
+                {(lead ? rest : sub.blocks).map((block) =>
+                  block.type === 'p' ? <p class="para">{block.text}</p> : <ol>{block.items.map((item) => {
+                    const match = definition(item);
+                    return <li>{match ? <>“<dfn>{match[1]}</dfn>”{match[2]}</> : item}</li>;
+                  })}</ol>
+                )}
+              </>
+            );
+          })}
+        </ins>
+      )}
+    </>
+  ))}
+
+  <div class="signatures">
+    <p>The foregoing ordinance was first read by title only in accordance with Article X, Section 2(C) of the City Charter on the ______ day of ________________, 20__, and duly PASSED and ADOPTED this ______ day of ________________, 20__.</p>
+    <p class="signed">SIGNED and APPROVED this ______ day of ________________, 20__.</p>
+    <div class="sign-row">
+      <div class="attest">ATTEST:</div>
+      <div class="line"><span>City Recorder</span></div>
+      <div class="line"><span>Mayor</span></div>
+    </div>
+    <div class="form">
+      <p>Reviewed as to form:</p>
+      <div class="line"><span>City Attorney</span></div>
+    </div>
+  </div>
+</article>
+
+<style>
+  @layer components {
+    dfn { font-style: normal; }
+    .draft-label {
+      text-align: center;
+      font-weight: 700;
+      color: var(--today-text);
+      border-block: 1.5px solid currentColor;
+      padding-block: 0.3em;
+      margin-block-end: 1em;
+    }
+  }
+</style>

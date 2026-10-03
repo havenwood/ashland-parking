@@ -1,0 +1,85 @@
+---
+import Base from '../layouts/Base.astro';
+import ShiftStrip from './ShiftStrip.astro';
+import { site } from '../site.ts';
+import { fill } from '../lib/format.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+import '../styles/document.css';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale);
+const page = text.onePager;
+const href = new URL(locale === 'es' ? 'es/' : '', `${Astro.site}ashland-parking/`).href;
+const url = href.replace(/^https:\/\//, '');
+---
+
+<Base title={`${page.title}: ${page.subtitle}`} description={text.meta.description} path="one-pager/">
+  <div class="sheet">
+    <article class="doc flyer" lang={locale}>
+      <p class="draft-tag">{text.draft} {text.draftNote}</p>
+      <hgroup>
+        <h1>{page.title}</h1>
+        <p class="subtitle">{text.hero.title}</p>
+      </hgroup>
+
+      <figure class="example">
+        <figcaption><strong>{page.example}</strong></figcaption>
+        <ShiftStrip hours={8} spot="street" locale={locale} />
+      </figure>
+
+      <h2>{page.what}</h2>
+      <ul>{page.whatItems.map((item) => <li>{item}</li>)}</ul>
+
+      <h2>{page.who}</h2>
+      <p>{page.whoBody}</p>
+
+      <h2>{page.act}</h2>
+      <p>{page.actBody}</p>
+
+      <p class="more">{page.more} <a href={href}><strong>{url}</strong></a></p>
+      <p class="credit">
+        {fill(text.footer.credit, { sponsor: site.sponsor.name, name: site.preparedBy })}
+      </p>
+    </article>
+  </div>
+</Base>
+
+<style>
+  @layer components {
+    .flyer {
+      page: flyer;
+      &:lang(es) { page: flyer-es; }
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.36;
+      & h1 {
+        font-family: var(--font-display), Georgia, serif;
+        font-size: 28pt;
+        font-weight: 500;
+        line-height: 1.05;
+        text-align: start;
+        margin-block-end: 0.3em;
+      }
+      & h2 { font-family: var(--font-display), Georgia, serif; font-size: 16pt; margin-block: 0.8em 0.2em; letter-spacing: 0; }
+      & ul { padding-inline-start: 1.2em; }
+      & li { margin-block-end: 0.3em; }
+    }
+    .draft-tag { color: var(--today-text); font-weight: 700; font-size: 10.5pt; }
+    .subtitle { font-size: 14pt; color: var(--ink-soft); margin-block-end: 1em; }
+    /* The worked example on the quiet surface, as on the site; it prints in the light theme's blue-gray. */
+    .example {
+      font-size: 13pt;
+      padding: 1em 1.1em;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      background: var(--surface);
+      & figcaption { margin-block-end: 0.6em; }
+      & :global(.row svg) { block-size: 1.6rem; }
+    }
+    .more { margin-block-start: 1em; font-size: 14pt; }
+    .credit { font-size: 9.5pt; color: var(--ink-soft); }
+  }
+</style>
