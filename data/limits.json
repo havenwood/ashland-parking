@@ -1,0 +1,60 @@
+{
+  "about": "Approximate time limits, hand-annotated from the City of Ashland Downtown Public Parking map (2023): https://gis.ashland.or.us/hub/pdf/public_works/parking_downtown.pdf. Street names match OpenStreetMap. 'excluded' marks Timed Spaces the bill leaves out (the Plaza). Labels and places only position text on the drawing; places name OSM buildings to shade as landmarks.",
+  "view": [-122.7181, 42.1936, -122.7087, 42.1996],
+  "faces": [
+    { "street": "North Main Street", "from": "Lithia Way", "to": "East Main", "limit": 2 },
+    { "street": "North Main Street", "from": "East Main", "to": "Winburn Way", "limit": "excluded" },
+    { "street": "Water Street", "from": "Lithia Way", "to": "North Main", "limit": 2 },
+    { "street": "East Main Street", "from": "Oak", "to": "Pioneer", "limit": 2 },
+    { "street": "East Main Street", "from": "Pioneer", "to": "1st", "limit": 2 },
+    { "street": "East Main Street", "from": "1st", "to": "2nd", "limit": 2 },
+    { "street": "East Main Street", "from": "2nd", "to": "3rd", "limit": 2 },
+    { "street": "East Main Street", "from": "3rd", "to": "Gresham", "limit": 2 },
+    { "street": "Lithia Way", "from": "North Main", "to": "Oak", "limit": 2 },
+    { "street": "Lithia Way", "from": "Oak", "to": "Pioneer", "limit": 2 },
+    { "street": "Lithia Way", "from": "Pioneer", "to": "1st", "limit": 2 },
+    { "street": "Lithia Way", "from": "1st", "to": "2nd", "limit": 2 },
+    { "street": "Lithia Way", "from": "2nd", "to": "3rd", "limit": 2 },
+    { "street": "Lithia Way", "from": "3rd", "to": "East Main", "limit": 2 },
+    { "street": "Oak Street", "from": "East Main", "to": "Lithia Way", "limit": 2 },
+    { "street": "North Pioneer Street", "from": "East Main", "to": "Lithia Way", "limit": 2 },
+    { "street": "South Pioneer Street", "from": "East Main", "to": "Hargadine", "limit": 2 },
+    { "street": "North 1st Street", "from": "East Main", "to": "Lithia Way", "limit": 2 },
+    { "street": "South 1st Street", "from": "East Main", "to": "Hargadine", "limit": 2 },
+    { "street": "North 2nd Street", "from": "East Main", "to": "Lithia Way", "limit": 2 },
+    { "street": "South 2nd Street", "from": "East Main", "to": "Hargadine", "limit": 2 },
+    { "street": "North 3rd Street", "from": "East Main", "to": "Lithia Way", "limit": 2 },
+    { "street": "Winburn Way", "from": "North Main", "to": "Nutley", "limit": 4 }
+  ],
+  "lots": [
+    { "osm": "way/168721177", "name": { "en": "Lithia Way & Pioneer lot", "es": "Estacionamiento de Lithia Way y Pioneer" }, "limit": 4 },
+    { "osm": "way/372194386", "name": { "en": "Second Street lot", "es": "Estacionamiento de Second Street" }, "limit": 2 },
+    { "osm": "way/956221853", "name": { "en": "Hargadine parking structure", "es": "Estructura de estacionamiento Hargadine" }, "limit": "garage" },
+    { "osm": "way/168721213", "name": { "en": "Water & B Street lot (west)", "es": "Estacionamiento de Water y B (oeste)" }, "limit": "none" },
+    { "osm": "way/463331121", "name": { "en": "Water & B Street lot (east)", "es": "Estacionamiento de Water y B (este)" }, "limit": "none" },
+    { "osm": "way/956995107", "name": { "en": "Winburn & Nutley lot", "es": "Estacionamiento de Winburn y Nutley" }, "limit": "none" }
+  ],
+  "labels": [
+    { "text": "E Main St", "street": "East Main Street", "from": "1st", "to": "2nd", "side": -1 },
+    { "text": "Lithia Way", "street": "Lithia Way", "from": "1st", "to": "2nd", "side": -1 },
+    { "text": "N Main St", "street": "North Main Street", "from": "Lithia Way", "to": "East Main", "side": 1 },
+    { "text": "Winburn Way", "street": "Winburn Way", "from": "North Main", "to": "Nutley", "side": -1 },
+    { "text": "Pioneer St", "street": "North Pioneer Street", "from": "East Main", "to": "Lithia Way", "side": 1 },
+    { "text": "Oak St", "street": "Oak Street", "from": "Lithia Way", "to": "B", "side": 1, "minor": true },
+    { "text": "1st St", "street": "North 1st Street", "from": "East Main", "to": "Lithia Way", "side": 1, "minor": true },
+    { "text": "2nd St", "street": "South 2nd Street", "from": "East Main", "to": "Hargadine", "side": -1 },
+    { "text": "3rd St", "street": "North 3rd Street", "from": "East Main", "to": "Lithia Way", "side": -1, "minor": true },
+    { "text": "B St", "street": "B Street", "from": "Oak", "to": "Pioneer", "side": -1, "minor": true },
+    { "text": "Hargadine St", "street": "Hargadine Street", "from": "Pioneer", "to": "2nd", "side": 1 }
+  ],
+  "places": [
+    { "name": "park", "kind": "area", "at": [-122.71584, 42.19507], "wrap": true },
+    { "name": "plaza", "kind": "area", "at": [-122.71514, 42.1973] },
+    { "name": "creek", "kind": "water", "at": [-122.71648, 42.19681], "angle": -94 },
+    { "name": "osf", "kind": "building", "at": [-122.71505, 42.19633], "wrap": true, "osm": ["way/956222485", "way/956222590", "relation/12871386", "way/956223591"] },
+    { "name": "cityHall", "kind": "building", "at": [-122.71489, 42.19686], "osm": ["way/956223409"] },
+    { "name": "postOffice", "kind": "building", "at": [-122.71154, 42.19685], "osm": ["way/956221099"] },
+    { "name": "library", "kind": "building", "at": [-122.70983, 42.19403], "osm": ["way/168720855", "way/168720991"] },
+    { "name": "garage", "kind": "building", "at": [-122.71335, 42.19594], "wrap": true }
+  ]
+}

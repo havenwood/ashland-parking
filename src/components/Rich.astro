@@ -1,0 +1,21 @@
+---
+import Source from './Source.astro';
+import { sources } from '../data/sources.ts';
+import type { SourceId } from '../data/sources.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props {
+  text: string;
+  locale: Locale;
+}
+
+const { text, locale } = Astro.props;
+const parts = text.split(/(\[[^\]]+\]\([a-zA-Z0-9]+\))/).map((part) => {
+  const link = part.match(/^\[([^\]]+)\]\(([a-zA-Z0-9]+)\)$/);
+  if (!link) return { text: part };
+  if (!(link[2] in sources)) throw new Error(`Unknown source "${link[2]}" in: ${text}`);
+  return { label: link[1], id: link[2] as SourceId };
+});
+---
+
+{parts.map((part) => ('id' in part ? <Source id={part.id!} locale={locale} label={part.label} /> : part.text))}

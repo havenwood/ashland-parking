@@ -1,0 +1,96 @@
+---
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import eastMain from '../assets/photos/east-main.jpg';
+import eastMainDark from '../assets/photos/east-main-dark.jpg';
+import plaza from '../assets/photos/plaza.jpg';
+import plazaDark from '../assets/photos/plaza-dark.jpg';
+import type { PhotoId } from '../data/photos.ts';
+
+interface Props {
+  id: PhotoId;
+}
+
+/**
+ * Each photo is printed twice in the page's own inks (see README, Photo credits): soft ink to
+ * the page paper for light, the night paper to a quiet gray for dark. They are backdrop, so the
+ * image is decorative (empty alt) and the credits live in the footer.
+ */
+const prints: Record<PhotoId, { light: ImageMetadata; dark: ImageMetadata }> = {
+  eastMain: { light: eastMain, dark: eastMainDark },
+  plaza: { light: plaza, dark: plazaDark },
+};
+const widths = [240, 360, 480];
+const sizes = '11rem';
+const formats = ['avif', 'webp'] as const;
+const sources = (src: ImageMetadata) =>
+  Promise.all(formats.map(async (format) => ({
+    type: 'image/' + format,
+    srcset: (await getImage({ src, widths, format })).srcSet.attribute,
+  })));
+
+const { id } = Astro.props;
+const { light, dark } = prints[id];
+const [darkSources, lightSources, fallback] = await Promise.all([
+  sources(dark),
+  sources(light),
+  getImage({ src: light, widths, format: 'jpg' }),
+]);
+---
+
+<picture class="photo">
+  {darkSources.map((source) => <source media="(prefers-color-scheme: dark)" type={source.type} srcset={source.srcset} sizes={sizes} />)}
+  {lightSources.map((source) => <source type={source.type} srcset={source.srcset} sizes={sizes} />)}
+  <img
+    src={fallback.src}
+    srcset={fallback.srcSet.attribute}
+    sizes={sizes}
+    alt=""
+    width={light.width}
+    height={light.height}
+    loading="lazy"
+    decoding="async"
+  />
+</picture>
+
+<style>
+  /*
+   * Backdrop, not a feature: small, in the margin, soft at every edge, and printed
+   * so its lightest tone (darkest, at night) is the page itself. Multiply lays the light print
+   * into the page like ink; the night print is already quiet, so it sits as it is.
+   */
+  @layer components {
+    /*
+     * A margin illustration: it sits in the right-hand margin beside its section's heading,
+     * and only where that margin exists. On narrower screens it isn't shown (or downloaded).
+     */
+    .photo {
+      display: none;
+      grid-column: content-end / wide-end;
+      /* Spread across the first rows so it never stretches them. */
+      grid-row: 1 / span 3;
+      justify-self: end;
+      align-self: start;
+      padding-inline-start: var(--space-m);
+      pointer-events: none;
+    }
+    @media (width >= 70rem) {
+      .photo { display: block; }
+    }
+    img {
+      inline-size: auto;
+      block-size: auto;
+      max-inline-size: 11rem;
+      max-block-size: 12rem;
+      mix-blend-mode: multiply;
+      /* A feathered edge: the intersection of a horizontal and a vertical fade. */
+      mask-image:
+        linear-gradient(to right, transparent, black 14%, black 86%, transparent),
+        linear-gradient(transparent, black 14%, black 86%, transparent);
+      mask-composite: intersect;
+    }
+    @media (prefers-color-scheme: dark) {
+      img { mix-blend-mode: normal; }
+    }
+  }
+</style>

@@ -1,0 +1,201 @@
+---
+import Base from '../layouts/Base.astro';
+import { site } from '../site.ts';
+import { garageSavings, moves } from '../lib/shift.ts';
+import { withBase } from '../lib/url.ts';
+import '../styles/document.css';
+
+/** A one-page leave-behind for councilors. English only, like the memo. */
+const fullTime = garageSavings(5).daily;
+const shift = moves(8, 'street');
+/**
+ * Minutes a move takes: walk out, re-park on another block face, walk back. Often longer when
+ * the nearest open 2-hour space is far away. Stated on the page.
+ */
+const MINUTES_PER_MOVE = { low: 10, high: 15 };
+const minutesPerShift = { low: shift.today * MINUTES_PER_MOVE.low, high: shift.today * MINUTES_PER_MOVE.high };
+/** Hours as a friendly fraction, e.g. 2.5 → "2½", 3.75 → "3¾". */
+const hours = (minutes: number) => {
+  const whole = Math.floor(minutes / 60);
+  const fraction = { 0: '', 15: '¼', 30: '½', 45: '¾' }[minutes % 60] ?? '';
+  return `${whole}${fraction}`;
+};
+const perWeek = { low: hours(minutesPerShift.low * 5), high: hours(minutesPerShift.high * 5) };
+const siteUrl = 'shannonskipper.com/ashland-parking';
+---
+
+<Base
+  title="Council brief: Downtown Worker Parking Pass"
+  description="A one-page brief for Ashland councilors on the proposed Downtown Worker Parking Pass."
+  path="brief/"
+  locales={['en']}
+>
+  <nav class="doc-bar" aria-label="Brief">
+    <a class="button quiet" href={withBase('#bill')}>Read the Bill</a>
+    <a class="button" href={withBase('ashland-worker-parking-council-brief.pdf')} type="application/pdf">Download PDF</a>
+  </nav>
+  <div class="sheet">
+    <article class="doc brief" lang="en">
+      <header class="head">
+        <p class="kicker">Downtown Worker Parking Pass, a resident proposal for downtown Ashland</p>
+        <h1>Workers in the garage. Customers on the street. Everyone wins.</h1>
+        <p class="lede">
+          A free pass lets people who work downtown park all day in the Hargadine garage, or stay twice as long in 2- and 4-hour spaces.
+        </p>
+      </header>
+
+      <ul class="wins">
+        <li class="garage">
+          <p class="who">Workers</p>
+          <p class="big">$0</p>
+          <p><strong>to park all day in the garage,</strong> 6 a.m. to 6 p.m. Full time, that’s ${fullTime} a year today.</p>
+        </li>
+        <li class="time">
+          <p class="who">Businesses</p>
+          <p class="big">{minutesPerShift.low}–{minutesPerShift.high}<span class="unit"> min</span></p>
+          <p><strong>a shift back on the job</strong> per worker in the garage. {perWeek.low} to {perWeek.high} hours a week.*</p>
+        </li>
+        <li class="street">
+          <p class="who">Customers</p>
+          <p class="big">+1</p>
+          <p><strong>open street space,</strong> all day, for every worker who parks in the garage instead.</p>
+        </li>
+      </ul>
+
+      <blockquote class="story">
+        <p>
+          During a rush, I watched a server at a downtown taqueria, in a leg cast, leave work to move her car from one 2-hour space to another. Hard on her, hard on the restaurant, and hard on the visitors waiting for their food.
+        </p>
+        <footer>{site.preparedBy}</footer>
+      </blockquote>
+
+      <div class="cols">
+        <section aria-labelledby="how-title">
+          <h2 id="how-title">How it works</h2>
+          <ul>
+            <li>Free. Apply by email or web form with a pay stub from the last 60 days. In person works as a backup.</li>
+            <li>One car, good for a year, no transfers.</li>
+            <li>2-hour spaces become 4, and 4 become 8. The Plaza stays at 2 hours for everyone.</li>
+            <li>Workers still on the street go from {shift.today} moves a shift to {shift.withPass}.</li>
+          </ul>
+        </section>
+        <section aria-labelledby="cost-title">
+          <h2 id="cost-title">Cost, capped</h2>
+          <p>
+            Each pass gives up about ${fullTime} a year in daily garage fees, and less for anyone who parks on the street today. The City Manager can cap the number of passes, and the Council gets a report after a year.
+          </p>
+          <p>
+            The City’s 2015 parking plan found that moving employees off the street “would have a significant impact on on-street occupancies.”
+          </p>
+        </section>
+      </div>
+
+      <p class="ask">
+        <strong>A next step together:</strong> have staff look over the draft ordinance (new AMC 11.26.105), or start with the garage as a one-year pilot. We’re glad to help.
+      </p>
+
+      <footer class="foot">
+        <p>
+          A proposal from Ashland neighbors {site.preparedBy} and {site.sponsor.name}. Draft language, a starting point for City staff and the City Attorney. The Bill, a map and a shift calculator are at <a href={`https://${siteUrl}/`}>{siteUrl}</a>.
+        </p>
+        <p class="notes">
+          * {MINUTES_PER_MOVE.low} to {MINUTES_PER_MOVE.high} minutes a move, and often longer when the nearest open 2-hour space is far away. Sources: City of Ashland Downtown Public Parking page and FY27 fee schedule ($2.75 a day), Downtown Public Parking map (2023), Downtown Strategic Parking Management Plan (2015), AMC 11.26.
+        </p>
+      </footer>
+    </article>
+  </div>
+</Base>
+
+<style>
+  @layer components {
+    .brief {
+      page: brief;
+      font-family: var(--font-body), system-ui, sans-serif;
+      font-size: 11.25pt;
+      line-height: 1.4;
+      display: grid;
+      gap: 1em;
+      & h1 {
+        font-family: var(--font-display), Georgia, serif;
+        font-size: 27pt;
+        font-weight: 600;
+        line-height: 1.08;
+        text-align: start;
+        margin: 0;
+        text-wrap: balance;
+      }
+      & h2 { font-family: var(--font-display), Georgia, serif; font-size: 13pt; margin-block-end: 0.3em; letter-spacing: 0; }
+      & p, & li { margin: 0; }
+      & ul { padding-inline-start: 1.1em; display: grid; gap: 0.25em; }
+    }
+    .head { display: grid; gap: 0.45em; padding-block-end: 0.8em; border-block-end: 3px solid var(--pass); }
+    .kicker { font-weight: 700; color: var(--pass); font-size: 9.5pt; }
+    .lede { font-size: 13pt; color: var(--ink-soft); }
+
+    /* Three wins, each a big number on a quiet panel. */
+    .wins {
+      list-style: none;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6em;
+      & li {
+        display: grid;
+        align-content: start;
+        gap: 0.3em;
+        padding: 0.85em 0.9em;
+        border-radius: var(--radius);
+        background: var(--surface);
+        border-block-start: 4px solid var(--accent);
+      }
+      & .big {
+        font-family: var(--font-display), Georgia, serif;
+        font-size: 32pt;
+        font-weight: 500;
+        line-height: 1;
+        color: var(--accent);
+        font-variant-numeric: lining-nums;
+      }
+      & .unit { font-size: 0.5em; font-weight: 600; }
+      /* Who wins: one small label per tile. */
+      & .who {
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+    }
+    .garage { --accent: var(--go-text); }
+    .time { --accent: var(--pass); }
+    .street { --accent: var(--primary); }
+
+    .story {
+      margin: 0;
+      padding: 0.2em 0 0.2em 1em;
+      border-inline-start: 4px solid var(--today);
+      & p { font-family: var(--font-display), Georgia, serif; font-size: 13.5pt; line-height: 1.35; }
+      & footer { margin-block-start: 0.3em; font-weight: 700; font-size: 9.5pt; color: var(--ink-soft); }
+    }
+
+    .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.2em; }
+    .cols p + p { margin-block-start: 0.4em; }
+
+    .ask {
+      padding: 0.7em 0.9em;
+      border-radius: var(--radius);
+      background: var(--pass-wash);
+      border-inline-start: 4px solid var(--pass);
+      font-size: 12pt;
+    }
+
+    .foot { font-size: 8.5pt; color: var(--ink-soft); display: grid; gap: 0.3em; }
+    .foot a { color: inherit; font-weight: 700; }
+    .notes { font-size: 7.5pt; }
+
+    @media print {
+      .brief { color: black; }
+      .wins li, .ask { print-color-adjust: exact; }
+    }
+  }
+</style>

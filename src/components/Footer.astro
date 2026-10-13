@@ -1,0 +1,79 @@
+---
+import { sources } from '../data/sources.ts';
+import { photos, photoText } from '../data/photos.ts';
+import { site } from '../site.ts';
+import { fill } from '../lib/format.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const text = t(locale);
+const date = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { dateStyle: 'long', timeZone: 'UTC' })
+  .format(new Date(site.asOf));
+const [beforeDate, afterDate] = text.footer.asOf.split('{date}');
+/** Source publishers and dates are recorded in English; mark them on other-language pages. */
+const english = locale === 'en' ? undefined : 'en';
+---
+
+<footer class="footer">
+  <div class="inner">
+    <p class="draft"><strong>{text.footer.draft}</strong></p>
+    <p>
+      {fill(text.footer.credit, { sponsor: site.sponsor.name, name: site.preparedBy })}
+      {beforeDate}<time datetime={site.asOf}>{date}</time>{afterDate}
+    </p>
+    <p>{text.footer.privacy} <a href={site.repo}>{text.footer.code}</a>.</p>
+
+    <details class="sources">
+      <summary>{text.footer.sources}</summary>
+      <ul>
+        {Object.values(sources).map((source) => (
+          <li>
+            <a href={source.url} hreflang={source.lang ?? 'en'} lang={source.title.es === source.title.en ? english : undefined}>{source.title[locale]}</a>, <span lang={english}>{source.publisher}, {source.date}</span>
+            {source.blocked && <small> ({text.sources.blocked})</small>}
+            {source.archived && <small> ({text.sources.archived})</small>}
+          </li>
+        ))}
+      </ul>
+    </details>
+
+    <details class="sources photo-credits">
+      <summary>{photoText[locale].credits}</summary>
+      <ul>
+        {Object.values(photos).map((photo) => (
+          <li>
+            {photo.place[locale]}, {photo.year}: <a href={photo.source}>{photo.title}</a> {photoText[locale].by} {photo.author},
+            <a href={photo.license.url} rel="license">{photo.license.name[locale]}</a>. {photo.changes[locale]}
+          </li>
+        ))}
+      </ul>
+    </details>
+  </div>
+</footer>
+
+<style>
+  @layer components {
+    .footer {
+      margin-block-start: var(--space-xl);
+      padding-block: var(--space-l);
+      border-block-start: 1px solid var(--rule);
+      background: var(--surface);
+      font-size: var(--step--1);
+      color: var(--ink-soft);
+    }
+    .inner {
+      display: grid;
+      gap: var(--space-s);
+      max-inline-size: calc(var(--measure) + 24rem);
+      margin-inline: auto;
+      padding-inline: 1rem;
+    }
+    .draft { color: var(--today-text); }
+    .sources {
+      & ul { display: grid; gap: 0.4rem; padding-inline-start: 1.2rem; }
+      & li { max-inline-size: none; }
+    }
+  }
+</style>

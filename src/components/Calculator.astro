@@ -1,0 +1,518 @@
+---
+import Rich from './Rich.astro';
+import { GARAGE, WEEKS_PER_YEAR, garageSavings, moves, timecard } from '../lib/shift.ts';
+import type { Spot } from '../lib/shift.ts';
+import { t } from '../i18n/strings.ts';
+import type { Locale } from '../i18n/strings.ts';
+import { fill, money, plural } from '../lib/format.ts';
+
+interface Props { locale: Locale }
+
+const { locale } = Astro.props;
+const strings = t(locale);
+const text = strings.calc;
+const defaults = { hours: 8, spot: 'street' as Spot, days: 5 };
+const initial = moves(defaults.hours, defaults.spot);
+const saved = garageSavings(defaults.days);
+const yearly = (initial.today - initial.withPass) * defaults.days * WEEKS_PER_YEAR;
+const shifts = [3, 4, 5, 6, 7, 8, 9, 10, 12];
+const spots: Spot[] = ['street', 'lot', 'garage'];
+
+// The time card's words, for the first card drawn here and every later one drawn by the script.
+const punches: Record<string, string> = { in: text.clockIn, move: text.moveCar, stay: text.stayParked, out: text.clockOut };
+const lowerFirst = (value: string) => value.charAt(0).toLocaleLowerCase(locale) + value.slice(1);
+const spotNames = Object.fromEntries(spots.map((spot) => [spot, lowerFirst(text.spots[spot])]));
+const card = timecard(defaults.hours, defaults.spot);
+const cardTitle = fill(text.cardTitle, { hours: defaults.hours.toLocaleString(locale), spot: spotNames[defaults.spot] });
+const dailyMath = fill(text.receiptDailyMath, { rate: money(GARAGE.daily, locale), days: plural(text.receiptDays, defaults.days, locale) });
+const leaseMath = fill(text.receiptLeaseMath, { rate: money(GARAGE.leaseMonthly, locale) });
+---
+
+<section id="calculator" class="section" aria-labelledby="calculator-title">
+  <h2 id="calculator-title">{text.title}</h2>
+  <p class="lede">{text.intro}</p>
+
+  <div class="calc" data-calc data-locale={locale}>
+    <form class="calc-form" id="calc-form" aria-label={text.formLabel}>
+      <label class="field">
+        <span>{text.hours}</span>
+        <input id="calc-hours" name="hours" type="number" inputmode="decimal" min="1" max="14" step="0.5" value={defaults.hours} required />
+      </label>
+      <fieldset class="field">
+        <legend>{text.spot}</legend>
+        {spots.map((spot) => (
+          <label class="choice">
+            <input type="radio" name="spot" id={`spot-${spot}`} value={spot} checked={spot === defaults.spot} />
+            <span>{text.spots[spot]}</span>
+          </label>
+        ))}
+      </fieldset>
+      <label class="field">
+        <span>{text.days}</span>
+        <input id="calc-days" name="days" type="number" inputmode="numeric" min="1" max="7" step="1" value={defaults.days} required />
+      </label>
+    </form>
+
+    <div class="calc-result">
+      <!-- A time card for the shift. A table, not phrasing content, so it sits beside the <output>. -->
+      <div class="timecard">
+        <table data-title={text.cardTitle}>
+          <caption>{cardTitle}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{text.cardHour}</th>
+              <th scope="col">{strings.strip.today}</th>
+              <th scope="col">{strings.strip.withPass}</th>
+            </tr>
+          </thead>
+          <tbody data-rows data-punches={JSON.stringify(punches)} data-spots={JSON.stringify(spotNames)}>
+            {card.map((row) => (
+              <tr data-key={row.today === 'move' ? String(row.hour) : row.today}>
+                <th scope="row">{row.hour.toLocaleString(locale)}</th>
+                <td class="today" data-punch={row.today}>{punches[row.today!]}</td>
+                <td class="pass" data-punch={row.withPass ?? 'stay'}>
+                  {row.withPass ? punches[row.withPass] : <span class="visually-hidden">{punches.stay}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">{text.cardMoves}</th>
+              <td class="today"><span class="num" data-num="today"><span class="static">{initial.today}</span></span></td>
+              <td class="pass"><span class="num" data-num="withPass"><span class="static">{initial.withPass}</span></span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- In the garage, the same result prints as a receipt, so the arithmetic is on the page. -->
+      <div class="receipt" data-receipt data-math={text.receiptDailyMath} data-days={JSON.stringify(text.receiptDays)}>
+        <p class="receipt-title">{text.receiptTitle}</p>
+        <dl class="lines">
+          <div>
+            <dt>{text.receiptDaily} <span class="math" data-daily-math>{dailyMath}</span></dt>
+            <dd data-daily-cost>{money(saved.daily, locale)}</dd>
+          </div>
+          <div>
+            <dt>{text.receiptLease} <span class="math">{leaseMath}</span></dt>
+            <dd>{money(GARAGE.leaseYearly, locale)}</dd>
+          </div>
+          <div class="free">
+            <dt>{text.receiptPass}</dt>
+            <dd>{money(0, locale)}</dd>
+          </div>
+        </dl>
+        <dl class="totals">
+          <div class="pass">
+            <dt>{text.savedDaily}</dt>
+            <dd><span class="num money" data-num="daily"><span class="static">{saved.daily}</span></span></dd>
+          </div>
+          <div class="go">
+            <dt>{text.savedLease}</dt>
+            <dd><span class="num money" data-num="lease"><span class="static">{saved.lease}</span></span></dd>
+          </div>
+        </dl>
+      </div>
+
+      <output
+        form="calc-form"
+        for="calc-hours spot-street spot-lot spot-garage calc-days"
+        data-moves={text.movesSentence}
+        data-yearly={text.yearly}
+        data-yearly-none={text.yearlyNone}
+        data-garage={text.garageSentence}
+      >
+        <span class="visually-hidden" data-sentence>
+          {fill(text.movesSentence, { today: initial.today, pass: initial.withPass })}
+        </span>
+        <span class="note" data-note>{fill(text.yearly, { n: yearly.toLocaleString(locale) })}</span>
+      </output>
+    </div>
+  </div>
+
+  <p class="noscript-note">{text.noScript}</p>
+
+  <details class="lookup">
+    <summary>{text.tableSummary}</summary>
+    <div class="table-scroll">
+      <table>
+        <caption>{text.tableCaption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{text.tableShift}</th>
+            <th scope="col">{text.spots.street}</th>
+            <th scope="col">{text.spots.lot}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shifts.map((hours) => {
+            const street = moves(hours, 'street');
+            const lot = moves(hours, 'lot');
+            return (
+              <tr>
+                <th scope="row">{fill(text.tableHours, { hours })}</th>
+                <td>{fill(text.tableCell, { today: street.today, pass: street.withPass })}</td>
+                <td>{fill(text.tableCell, { today: lot.today, pass: lot.withPass })}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+    <p>{fill(text.garageSentence, { daily: money(saved.daily, locale), lease: money(saved.lease, locale), days: defaults.days })}</p>
+  </details>
+
+  <p class="source"><Rich text={text.sources} locale={locale} /></p>
+</section>
+
+<script>
+  import { GARAGE, WEEKS_PER_YEAR, garageSavings, moves, timecard } from '../lib/shift.ts';
+  import type { Punch, Spot } from '../lib/shift.ts';
+  import { fill, money, plural } from '../lib/format.ts';
+
+  const calc = document.querySelector<HTMLElement>('[data-calc]');
+  const form = calc?.querySelector<HTMLFormElement>('form');
+  const output = calc?.querySelector<HTMLOutputElement>('output');
+  const rows = calc?.querySelector<HTMLTableSectionElement>('[data-rows]');
+  const receipt = calc?.querySelector<HTMLElement>('[data-receipt]');
+
+  if (calc && form && output && rows && receipt) {
+    const locale = calc.dataset.locale ?? 'en';
+    const table = rows.closest('table')!;
+    const punches = JSON.parse(rows.dataset.punches!) as Record<string, string>;
+    const spotNames = JSON.parse(rows.dataset.spots!) as Record<Spot, string>;
+    const dayForms = JSON.parse(receipt.dataset.days!) as Record<string, string>;
+    const nums = new Map([...calc.querySelectorAll<HTMLElement>('[data-num]')].map((el) => [el.dataset.num!, el]));
+    // The visible figure counts toward --to; the hidden one says the final number to assistive tech.
+    const set = (name: string, value: number) => {
+      const el = nums.get(name)!;
+      el.style.setProperty('--to', String(value));
+      el.querySelector('.static')!.textContent = String(value);
+      el.dataset.live = '';
+    };
+    const clamp = (value: number, min: number, max: number) =>
+      Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
+
+    /** One punch on the card. A fresh cell, so a new move gets punched in. */
+    const cell = (column: 'today' | 'pass', punch: Punch) => {
+      const td = document.createElement('td');
+      td.className = column;
+      td.dataset.punch = punch ?? 'stay';
+      if (punch) td.textContent = punches[punch];
+      else td.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: punches.stay }));
+      return td;
+    };
+
+    /** Redraws the card's rows, keeping the ones that didn't change so only new punches animate. */
+    const drawCard = (hours: number, spot: Spot) => {
+      const card = timecard(hours, spot);
+      card.forEach((row, index) => {
+        const key = row.today === 'move' ? String(row.hour) : row.today!;
+        let tr = rows.querySelector<HTMLTableRowElement>(`tr[data-key="${key}"]`);
+        if (!tr) {
+          tr = document.createElement('tr');
+          tr.dataset.key = key;
+          const th = document.createElement('th');
+          th.scope = 'row';
+          tr.append(th, cell('today', row.today), cell('pass', row.withPass));
+        }
+        if (rows.rows[index] !== tr) rows.insertBefore(tr, rows.rows[index] ?? null);
+        tr.cells[0].textContent = row.hour.toLocaleString(locale);
+        if (tr.cells[2].dataset.punch !== (row.withPass ?? 'stay')) tr.cells[2].replaceWith(cell('pass', row.withPass));
+      });
+      while (rows.rows.length > card.length) rows.rows[card.length].remove();
+      table.caption!.textContent = fill(table.dataset.title!, { hours: hours.toLocaleString(locale), spot: spotNames[spot] });
+    };
+
+    const update = () => {
+      const data = new FormData(form);
+      const hours = clamp(Number(data.get('hours')), 1, 14);
+      const days = clamp(Math.round(Number(data.get('days'))), 1, 7);
+      const spot = (data.get('spot') ?? 'street') as Spot;
+      const { today, withPass } = moves(hours, spot);
+      const saved = garageSavings(days);
+      set('today', today);
+      set('withPass', withPass);
+      set('daily', saved.daily);
+      set('lease', saved.lease);
+      calc.dataset.spot = spot;
+      // The panel washes from resting blue-gray toward mint with the share of moves a pass saves;
+      // free daytime garage parking is the whole of it.
+      calc.style.setProperty('--relief', String(spot === 'garage' ? 1 : today ? (today - withPass) / today : 0));
+
+      if (spot === 'garage') {
+        receipt.querySelector('[data-daily-math]')!.textContent = fill(receipt.dataset.math!, {
+          rate: money(GARAGE.daily, locale),
+          days: plural(dayForms, days, locale),
+        });
+        receipt.querySelector('[data-daily-cost]')!.textContent = money(saved.daily, locale);
+      } else {
+        drawCard(hours, spot);
+      }
+
+      const sentence = spot === 'garage'
+        ? fill(output.dataset.garage!, { daily: money(saved.daily, locale), lease: money(saved.lease, locale), days })
+        : fill(output.dataset.moves!, { today, pass: withPass });
+      output.querySelector('[data-sentence]')!.textContent = sentence;
+
+      const yearly = (today - withPass) * days * WEEKS_PER_YEAR;
+      output.querySelector('[data-note]')!.textContent = spot === 'garage'
+        ? ''
+        : yearly > 0 ? fill(output.dataset.yearly!, { n: yearly.toLocaleString(locale) }) : output.dataset.yearlyNone!;
+    };
+
+    form.addEventListener('input', () => {
+      calc.dataset.armed = '';
+      update();
+    });
+    form.addEventListener('submit', (event) => event.preventDefault());
+    update();
+  }
+</script>
+
+<style>
+  @property --n {
+    syntax: '<integer>';
+    inherits: false;
+    initial-value: 0;
+  }
+  /* How much a pass helps this shift, from 0 to 1. Set by the script; 0 until it runs. */
+  @property --relief {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+  /* The panel's wash, registered as a color so it eases from one mix to the next. */
+  @property --wash {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: transparent;
+  }
+
+  @layer components {
+    /* The calculator sizes itself to its own column, not the window. */
+    .section { container-type: inline-size; }
+
+    .calc {
+      display: grid;
+      gap: var(--space-m) var(--space-l);
+      padding: var(--space-m);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius);
+      --wash: color-mix(in oklab, var(--today-wash), var(--pass-wash) calc(var(--relief) * 100%));
+      background: var(--wash);
+    }
+    @container (inline-size >= 42rem) {
+      .calc { grid-template-columns: minmax(13rem, 1fr) 2fr; }
+    }
+
+    .calc-form { display: grid; gap: var(--space-m); align-content: start; }
+    .field {
+      display: grid;
+      gap: 0.4rem;
+      border: 0;
+      padding: 0;
+      & > span, & legend { font-weight: 700; }
+    }
+    input[type='number'] {
+      justify-self: start;
+      inline-size: 6ch;
+      min-block-size: var(--tap);
+      padding: 0.4rem 0.6rem;
+      border: 2px solid var(--rule-strong);
+      border-radius: var(--radius);
+      background: var(--paper);
+      font-size: var(--step-1);
+      font-variant-numeric: tabular-nums;
+      @supports (field-sizing: content) {
+        field-sizing: content;
+        inline-size: auto;
+        min-inline-size: 4ch;
+      }
+    }
+    .choice {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-block-size: var(--tap);
+      cursor: pointer;
+      & input { inline-size: 1.25rem; block-size: 1.25rem; margin: 0; }
+    }
+
+    .calc-result { display: grid; gap: var(--space-m); align-content: start; min-inline-size: 0; }
+
+    /* The big figures count from one value to the next on a registered integer. */
+    .num {
+      position: relative;
+      font-family: var(--font-display), Georgia, serif;
+      font-weight: 400;
+      line-height: 1;
+      font-variant-numeric: lining-nums tabular-nums;
+      &.money::before { content: '$'; font-size: 0.6em; vertical-align: 0.55em; margin-inline-end: 0.05em; }
+      &[data-live] {
+        --n: var(--to);
+        counter-reset: n var(--n);
+        & .static {
+          position: absolute;
+          inline-size: 1px;
+          block-size: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
+        }
+        &::after { content: counter(n); }
+        /* The counter is for the eye; the hidden number above is the one read aloud. */
+        @supports (content: '' / '') {
+          &::after { content: counter(n) / ''; }
+        }
+      }
+    }
+
+    /* The time card: punch-clock stock, one corner clipped the way such cards are cut to go in one way round. */
+    .timecard {
+      --clip: 1.4rem;
+      padding: 0.9rem 1rem 0.5rem;
+      background: var(--paper);
+      border-radius: var(--radius);
+      clip-path: polygon(0 0, calc(100% - var(--clip)) 0, 100% var(--clip), 100% 100%, 0 100%);
+      & table { table-layout: fixed; font-variant-numeric: tabular-nums; }
+      & caption {
+        padding-block-end: 0.7rem;
+        padding-inline-end: var(--clip);
+        font-family: var(--font-display), Georgia, serif;
+        font-size: var(--step-1);
+        font-weight: 560;
+        line-height: 1.2;
+      }
+      & thead th { color: var(--ink-soft); vertical-align: bottom; }
+      & thead th:first-child { inline-size: 28%; }
+      & tfoot tr { border-block-start: 2px solid var(--ink); }
+      & tfoot :is(th, td) { border-block-end: 0; vertical-align: bottom; padding-block-start: 0.6rem; }
+      & tfoot th { font-weight: 700; padding-block-end: 0.7rem; }
+      & tfoot .num { font-size: clamp(2.75rem, 2rem + 3.5vw, 4.25rem); }
+      & tfoot .today .num { color: var(--today); }
+      & tfoot .pass .num { color: var(--pass); }
+    }
+    /* Rows and cells the script draws carry no scope, so these reach them globally, inside the card. */
+    .timecard :global(:is(th, td)) { padding: 0.4rem 0.6rem; }
+    .timecard :global(:is(th, td) + :is(th, td)) { border-inline-start: 1px solid var(--rule); }
+    .timecard :global(tbody th) { font-weight: 400; color: var(--ink-soft); }
+    .timecard :global(:is([data-punch='in'], [data-punch='out'])) { color: var(--ink-soft); }
+    .timecard :global([data-punch='move']) { font-weight: 700; }
+    .timecard :global(.today[data-punch='move']) { color: var(--today-text); }
+    .timecard :global(.pass[data-punch='move']) { color: var(--pass); }
+    /* A punch: the same dot the shift strip uses for a move, then the words. Color is never the only signal. */
+    .timecard :global([data-punch='move']::before) {
+      content: '';
+      display: inline-block;
+      inline-size: 0.6em;
+      block-size: 0.6em;
+      margin-inline-end: 0.45em;
+      border-radius: 50%;
+      background: currentColor;
+      vertical-align: 0.05em;
+    }
+
+    /* The receipt: the garage's arithmetic, on a slip with a torn edge. */
+    .receipt {
+      --tooth: 0.55rem;
+      display: none;
+      justify-self: start;
+      inline-size: min(100%, 27rem);
+      padding: 1rem 1.1rem calc(1rem + var(--tooth));
+      background: var(--paper);
+      border-radius: var(--radius) var(--radius) 0 0;
+      font-variant-numeric: tabular-nums;
+      /* The torn edge is a row of teeth: masks use only alpha. */
+      mask:
+        conic-gradient(from -45deg at bottom, transparent, black 1deg 89deg, transparent 90deg) 50% 100% / calc(var(--tooth) * 2) var(--tooth) repeat-x,
+        linear-gradient(black 0 0) top / 100% calc(100% - var(--tooth) + 1px) no-repeat;
+      & dl { display: grid; gap: 0.35rem; }
+      & dl > div { display: flex; align-items: baseline; gap: 0.5rem; }
+      & dd { font-weight: 700; }
+    }
+    .receipt-title {
+      margin-block-end: 0.75rem;
+      font-family: var(--font-display), Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 560;
+      line-height: 1.2;
+    }
+    .lines {
+      & dt {
+        flex: 1;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: baseline;
+        column-gap: 0.4rem;
+        /* A dotted leader from the item to its price. */
+        &::after { content: ''; grid-row: 1; grid-column: 2; min-inline-size: 1.5rem; border-block-end: 2px dotted var(--rule-strong); }
+      }
+      & .math { grid-row: 2; grid-column: 1 / -1; font-size: var(--step--1); color: var(--ink-soft); }
+      & .free dd { color: var(--pass); }
+    }
+    .totals {
+      margin-block-start: 0.8rem;
+      padding-block-start: 0.8rem;
+      border-block-start: 2px dashed var(--ink-soft);
+      & dt { font-weight: 700; color: var(--ink-soft); line-height: 1.3; }
+      & dd { order: -1; flex: none; }
+      /* Wide enough for $1001, so both labels start on one line. */
+      & .num { display: inline-block; min-inline-size: 2.7em; font-size: clamp(2.25rem, 1.8rem + 2.4vw, 3.25rem); }
+      & .pass .num { color: var(--pass); }
+      & .go .num { color: var(--go-text); }
+    }
+
+    .note { display: block; font-size: var(--step-1); line-height: 1.4; max-inline-size: 40ch; }
+    .note:empty { display: none; }
+
+    .calc[data-spot='garage'] {
+      & .receipt { display: block; }
+      & .timecard { display: none; }
+    }
+
+    @media (forced-colors: active) {
+      .timecard, .receipt { border: 2px solid CanvasText; }
+      .timecard :global([data-punch='move']::before) { forced-color-adjust: none; background: CanvasText; }
+    }
+
+    .noscript-note { display: none; }
+    @media (scripting: none) {
+      .calc { display: none; }
+      .noscript-note { display: block; }
+    }
+
+    .lookup > * + * { margin-block-start: var(--space-s); }
+
+    /* Motion answers the reader's own input: nothing moves until they change the form. */
+    @media (prefers-reduced-motion: no-preference) {
+      .calc[data-armed] {
+        transition: --wash 0.7s var(--ease-out);
+        & .num[data-live] {
+          transition: --n 0.7s var(--ease-out);
+          /* A card or receipt that comes back counts up from zero. */
+          @starting-style { --n: 0; }
+        }
+        & .timecard {
+          transition: opacity 0.3s var(--ease-out), translate 0.3s var(--ease-out), display 0.3s allow-discrete;
+          @starting-style { opacity: 0; translate: 0 0.4rem; }
+        }
+        /* The receipt feeds out of the printer, top first. */
+        & .receipt {
+          transition: clip-path 0.6s var(--ease-out), display 0.6s allow-discrete;
+          @starting-style { clip-path: inset(0 0 100% 0); }
+        }
+        & .timecard :global(tbody tr) {
+          transition: opacity 0.35s var(--ease-out);
+          @starting-style { opacity: 0; }
+        }
+        & .timecard :global([data-punch='move']::before) { animation: punch 0.35s cubic-bezier(0.3, 0, 0.4, 1) both; }
+      }
+    }
+    @keyframes punch {
+      from { scale: 2.2; opacity: 0; }
+      70% { scale: 0.9; opacity: 1; }
+    }
+  }
+</style>
